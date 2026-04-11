@@ -3,9 +3,7 @@
 > **你的学术生涯进度和健康状态监测平台**  
 > 帮助研究生科学规划时间、监控身心状态、激励自我提升
 
-![PHDiary Logo](https://github.com/Jellyxuesq/image/blob/main/logo-phdiary.png?raw=true)
-
-![PHDiary Banner](https://github.com/Jellyxuesq/image/blob/main/Gemini_Generated_Image_xcp4yfxcp4yfxcp4.png?raw=true)
+<img src="https://github.com/Jellyxuesq/image/blob/main/Gemini_Generated_Image_xcp4yfxcp4yfxcp4.png?raw=true" width="400" alt="PHDiary Banner">
 
 ---
 
