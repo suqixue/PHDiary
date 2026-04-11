@@ -1,15 +1,15 @@
-# 🎯 PHDiary - 研究生自我管理系统
+# 🎯 PHDiary - 学术生涯进度与健康状态监测系统
 
 > **你的学术生涯进度和健康状态监测平台**  
-> 帮助研究生科学规划时间、监控身心状态、激励自我提升
+> 帮助硕博生科学规划时间、监控身心状态、激励自我提升
 
-<img src="https://github.com/Jellyxuesq/image/blob/main/Gemini_Generated_Image_xcp4yfxcp4yfxcp4.png?raw=true" width="400" alt="PHDiary Banner">
+<img src="https://github.com/Jellyxuesq/image/blob/main/Gemini_Generated_Image_xcp4yfxcp4yfxcp4.png?raw=true" width="100%" alt="PHDiary Banner">
 
 ---
 
 ## 📌 项目简介
 
-**PHDiary** 是一个功能强大的个人时间管理、健康追踪和成就解锁系统，专为研究生设计。无论你是在为论文砌砌碰壁、平衡工作与生活，还是想科学管理时间和身心健康，PHDiary 都能为你提供完整的解决方案。
+**PHDiary** 是一个功能强大的个人时间管理、健康追踪和成就解锁系统，专为硕博生设计。无论你是在为论文砌砌碰壁、平衡工作与生活，还是想科学管理时间和身心健康，PHDiary 都能为你提供完整的解决方案。
 
 ### ✨ 核心特色
 
