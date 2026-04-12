@@ -770,6 +770,8 @@
     <!-- 许可证验证系统 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script src="License/license-utils.js"></script>
+    <!-- 前端本地验证库（推荐方案：无需服务器） -->
+    <script src="License/local/local-license-verify.js"></script>
     <script>
         // ==================== 许可证服务器配置（方案A：JSON版本） ====================
         // 本地开发使用 localhost:3000，生产环境改为实际服务器地址
@@ -1009,9 +1011,9 @@
             }
         }
         
-        // 格式化天数显示（超过36500天显示"永久"）
+        // 格式化天数显示（36500天及以上显示"永久"）
         function formatDaysDisplay(days) {
-            if (days > 36500) {
+            if (days >= 36500) {
                 return '永久';
             }
             return days + '天';
@@ -1078,10 +1080,16 @@
                     infoBtn.textContent = '✓ 试用';
                     infoBtn.title = '点击查看详情 | 试用版本';
                 } else {
-                    // 充值版：显示剩余天数
+                    // 充值版：显示剩余天数或"永久"
                     const daysDisplay = formatDaysDisplay(licenseInfo.daysRemaining);
                     infoBtn.textContent = '✓ 已激活 (' + daysDisplay + ')';
-                    infoBtn.title = '点击查看许可证详情 | 过期日期: ' + licenseInfo.expiryDate;
+                    
+                    // 如果是永久许可证，显示"永久有效"
+                    if (licenseInfo.daysRemaining > 36500) {
+                        infoBtn.title = '点击查看许可证详情 | 永久有效 ♾️';
+                    } else {
+                        infoBtn.title = '点击查看许可证详情 | 过期日期: ' + licenseInfo.expiryDate;
+                    }
                 }
                 
                 console.log('✅ 许可证有效，过期日期:', licenseInfo.expiryDate);
@@ -1228,43 +1236,41 @@
             }
         });
         
-        // 从输入框激活许可证
+        // 从输入框激活许可证（前端本地验证方案）
         async function activateLicenseFromInput() {
             const userIdInput = document.getElementById('license-user-id');
             const licenseKeyInput = document.getElementById('license-key-input');
-            const userId = userIdInput.value.trim();
-            const licenseKey = licenseKeyInput.value.trim();
+            const username = userIdInput.value.trim();
+            const activationCode = licenseKeyInput.value.trim();
             const messageEl = document.getElementById('license-message');
             
-            if (!userId) {
-                messageEl.textContent = '请输入用户 ID';
+            if (!username) {
+                messageEl.textContent = '请输入用户名';
                 messageEl.className = 'license-message error';
                 return;
             }
             
-            if (!licenseKey) {
-                messageEl.textContent = '请输入许可证密钥';
+            if (!activationCode) {
+                messageEl.textContent = '请输入激活码';
                 messageEl.className = 'license-message error';
                 return;
             }
             
-            const result = await activateLicense(licenseKey, userId);
+            // 使用前端本地验证 - 无需服务器！
+            const result = activateLicenseLocal(username, activationCode, 36500); // 36500天 = 永久
             messageEl.textContent = result.message;
             messageEl.className = 'license-message ' + (result.success ? 'success' : 'error');
             
             if (result.success) {
                 setTimeout(() => {
-                    // 清除演示版标记
-                    localStorage.removeItem('phd_is_demo_mode');
-                    localStorage.removeItem('phd_demo_used_once');
-                    console.log('✅ 清除演示版标记及使用历史');
+                    console.log('✅ 许可证激活成功，准备关闭弹窗');
                     
                     const modal = document.getElementById('license-activation-modal');
                     if (modal) {
                         modal.style.display = 'none';
                     }
                     
-                    // 【新增】实时更新左上角的许可证按钮显示
+                    // 实时更新左上角的许可证按钮显示
                     checkAndDisplayLicenseStatus();
                     
                     // 隐藏升级按钮和演示版标签
@@ -1277,15 +1283,15 @@
                     // 恢复 body 顶部 margin
                     document.body.style.marginTop = '0';
                     
-                    // 重新启用被禁用的功能 - 全面恢复所有按钮
+                    // 重新启用被禁用的功能
                     document.querySelectorAll('button').forEach(btn => {
                         btn.disabled = false;
                         btn.style.opacity = '1';
                         btn.style.cursor = 'pointer';
                         btn.title = '';
-                        btn.onclick = null;  // 移除之前添加的禁用处理器
+                        btn.onclick = null;
                         
-                        // 移除[试用禁用]或[演示版禁用]标签
+                        // 移除禁用标签
                         const text = btn.textContent;
                         if (text.includes('[试用禁用]')) {
                             btn.textContent = text.replace(' [试用禁用]', '');
@@ -1295,10 +1301,10 @@
                         }
                     });
                     
-                    console.log('✅ 所有按钮已重新启用');
+                    console.log('✅ 所有功能已解锁！');
                     
                     if (typeof showToast !== 'undefined') {
-                        showToast('🎉 已升级到付费版！所有功能已解锁！');
+                        showToast('🎉 激活成功！所有功能已解锁！');
                     }
                 }, 500);
             }
@@ -1686,6 +1692,53 @@
             alert('✅ 诊断完成！请按 F12 打开开发者工具查看详细报告。');
         }
         
+        // 前端本地激活码诊断
+        function showActivationDiagnostics() {
+            const userIdInput = document.getElementById('license-user-id');
+            const licenseKeyInput = document.getElementById('license-key-input');
+            const username = userIdInput.value.trim();
+            const activationCode = licenseKeyInput.value.trim();
+            
+            if (!username) {
+                alert('请先输入用户名');
+                return;
+            }
+            
+            if (!activationCode) {
+                alert('请先输入激活码');
+                return;
+            }
+            
+            // 使用诊断函数
+            const diagnosis = diagnoseActivationCode(username, activationCode);
+            
+            console.log('=' .repeat(60));
+            console.log('🔍 激活码诊断报告');
+            console.log('=' .repeat(60));
+            console.log('用户名：', username);
+            console.log('输入的激活码：', diagnosis.inputCode);
+            console.log('预期的激活码：', diagnosis.expectedCode);
+            console.log('激活码是否有效：', diagnosis.isValid ? '✅ 有效' : '❌ 无效');
+            console.log();
+            console.log('调试信息：');
+            console.log('  - 盐值：', diagnosis.debug.salt);
+            console.log('  - 激活码长度：', diagnosis.debug.codeLength);
+            console.log('  - 哈希输入：', diagnosis.debug.data);
+            console.log('  - SHA256哈希值：', diagnosis.debug.hash);
+            console.log('  - 计算方法：', diagnosis.debug.method);
+            console.log();
+            
+            if (!diagnosis.isValid) {
+                console.warn('❌ 激活码不匹配！请检查：');
+                console.warn('  1. 用户名是否正确（大小写敏感）');
+                console.warn('  2. 激活码是否正确（无多余空格）');
+                console.warn('  3. 盐值是否与生成工具一致');
+            } else {
+                console.log('✅ 激活码验证成功！可以激活');
+            }
+            console.log('=' .repeat(60));
+        }
+        
         // 页面加载时应用限制
         window.addEventListener('load', function() {
             console.log('📄 页面 load 事件触发，1秒后检查演示版...');
@@ -1910,20 +1963,20 @@
     <div id="license-activation-modal">
         <div class="license-modal-content">
             <button id="close-license-modal" onclick="closeActivationModal()" style="position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; background: #f3f4f6; border: none; border-radius: 50%; cursor: pointer; font-size: 18px; color: #6b7280; transition: all 0.2s;" title="关闭" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">✕</button>
-            <h2>✨ PHDiary Pro</h2>
-            <p>这是 PHDiary 的付费版本。请输入许可证密钥激活。</p>
+            <h2>✨ PHDiary Pro - 激活许可证</h2>
+            <p>输入用户名和激活码完成激活（无需网络连接）</p>
             
             <input 
                 type="text" 
                 id="license-user-id" 
-                placeholder="用户 ID (生成许可证时使用的用户ID)"
+                placeholder="用户名（开发者提供给你的用户名）"
                 autoComplete="off"
             />
             
             <input 
                 type="text" 
                 id="license-key-input" 
-                placeholder="输入许可证密钥 (例如: XXXX-XXXX-XXXX-XXXX)"
+                placeholder="输入激活码（开发者提供给你）"
                 autoComplete="off"
             />
             
@@ -1934,12 +1987,12 @@
                 <button id="offline-demo-btn" onclick="enableOfflineDemo()">离线演示</button>
             </div>
             
-            <button id="diagnostic-btn" style="width: 100%; margin-top: 10px; padding: 10px 16px; background: #8b5cf6; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;" onclick="licenseDiagnostic(); alert('✅ 诊断完成！请按 F12 打开开发者工具查看详细报告。')">🔍 诊断密钥</button>
+            <button id="diagnostic-btn" style="width: 100%; margin-top: 10px; padding: 10px 16px; background: #8b5cf6; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;" onclick="showActivationDiagnostics(); alert('✅ 诊断完成！请按 F12 打开开发者工具查看详细报告。')">🔍 诊断激活码</button>
             
             <p style="font-size: 12px; color: #9ca3af; margin-top: 16px; text-align: center;">
-                没有许可证？点击"离线演示"体验完整功能。<br/>
-                购买许可证请联系开发者。<br/>
-                <span style="color: #8b5cf6;">如激活失败，请点击"诊断密钥"查看报告</span>
+                没有激活码？点击"离线演示"体验完整功能。<br/>
+                获取激活码请联系开发者。<br/>
+                <span style="color: #8b5cf6;">如激活失败，请点击"诊断激活码"查看报告</span>
             </p>
         </div>
     </div>
