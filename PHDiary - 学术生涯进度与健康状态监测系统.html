@@ -948,34 +948,8 @@
             }
         }
         
-        // 许可证生成函数（卖给用户的密钥）
-        function generateLicense(userId = 'user', daysValid = 365) {
-            try {
-                const expiryDate = new Date();
-                expiryDate.setDate(expiryDate.getDate() + daysValid);
-                const expiryTimestamp = Math.floor(expiryDate.getTime() / 1000);
-                
-                const data = `${userId}|${expiryTimestamp}`;
-                const hash = CryptoJS.SHA256(data + LICENSE_SECRET).toString().toUpperCase();
-                
-                const licenseKey = `${hash.substring(0, 4)}-${hash.substring(4, 8)}-${hash.substring(8, 12)}-${hash.substring(12, 16)}-${hash.substring(16, 20)}`;
-                
-                return {
-                    license: licenseKey,
-                    userId: userId,
-                    expiryDate: expiryDate.toISOString().split('T')[0],
-                    expiryTimestamp: expiryTimestamp
-                };
-            } catch(e) {
-                console.error('许可证生成失败:', e);
-                return null;
-            }
-        }
-        
-        // 许可证验证函数（使用统一库）
-        function validateLicense(licenseKey, userId = 'user') {
-            return validateLicenseKey(licenseKey, userId);
-        }
+        // ⚠️ 旧方案已弃用：基于密钥的后端激活（不再支持）
+        // 新方案：前端本地激活码，参见 activateLicenseLocal()
         
         // 获取许可证信息（同时检查设备是否匹配）
         function getLicenseInfo() {
@@ -1102,102 +1076,16 @@
             }
         }
         
-        // 激活许可证（一个密钥只能激活一次）
-        async function activateLicense(licenseKey, userId = 'user') {
-            try {
-                // 检查密钥是否已被使用过
-                if (hasLicenseKeyBeenUsed(licenseKey)) {
-                    return { success: false, message: '❌ 此许可证密钥已在本设备激活过，无法重复激活。' };
-                }
-                
-                // 验证许可证本身是否有效（用户ID不区分大小写）
-                if (!validateLicenseKey(licenseKey, userId)) {
-                    return { success: false, message: '❌ 无效的许可证密钥（用户ID不匹配或密钥已过期）' };
-                }
-                
-                // 【关键】向服务器查询密钥是否已被激活过（全球级别检查）
-                const deviceFingerprint = generateDeviceFingerprint();
-                console.log('🔍 正在向服务器验证密钥...');
-                const serverCheck = await verifyLicenseWithServer(licenseKey, userId, deviceFingerprint);
-                
-                if (!serverCheck.success && serverCheck.alreadyActivated) {
-                    return {
-                        success: false,
-                        message: '❌ 此密钥已在其他设备激活过，无法使用。请申请新的密钥。'
-                    };
-                }
-                
-                // 提取许可证的真实有效期
-                const licenseInfo = extractLicenseInfo(licenseKey, userId);
-                if (!licenseInfo) {
-                    return { success: false, message: '❌ 无法提取许可证信息' };
-                }
-                
-                // 计算新的过期时间（支持续期累加）
-                let finalExpiryTimestamp = licenseInfo.expiryTimestamp;
-                const existingExpiryStr = localStorage.getItem(LICENSE_EXPIRY_KEY);
-                
-                if (existingExpiryStr) {
-                    const existingExpiryTimestamp = parseInt(existingExpiryStr);
-                    const currentTime = Math.floor(Date.now() / 1000);
-                    
-                    // 如果现有许可证还没过期，就在其基础上累加新的天数
-                    if (existingExpiryTimestamp > currentTime) {
-                        // 累加：现有过期时间 + 新许可证的天数
-                        finalExpiryTimestamp = existingExpiryTimestamp + (licenseInfo.daysValid * 24 * 60 * 60);
-                        console.log('📝 许可证续期累加：现有 + ' + licenseInfo.daysValid + ' 天');
-                    }
-                }
-                
-                // 保存激活信息
-                localStorage.setItem(LICENSE_STORAGE_KEY, 'true');
-                localStorage.setItem(LICENSE_EXPIRY_KEY, finalExpiryTimestamp.toString());
-                localStorage.removeItem('phd_is_demo_mode'); // 移除演示版标记
-                
-                // 【关键】标记密钥已被使用并绑定到此设备
-                markLicenseKeyAsUsedWithDevice(licenseKey);
-                
-                // 【新增】在后台向服务器注册已激活的密钥（非阻塞）
-                registerLicenseWithServer(licenseKey, userId, deviceFingerprint).catch(e => {
-                    console.warn('⚠️ 服务器注册失败，但本地激活成功:', e);
-                });
-                
-                // 计算有效期天数用于显示
-                const now = Math.floor(Date.now() / 1000);
-                const daysRemaining = Math.ceil((finalExpiryTimestamp - now) / (24 * 60 * 60));
-                
-                console.log('✅ 许可证激活成功。总有效期：' + daysRemaining + '天');
-                console.log('📱 许可证已绑定到此设备，其他设备无法使用。');
-                console.log('🌐 密钥已注册到服务器，全球无法重复使用。');
-                return { success: true, message: '✅ 激活成功！许可证已全球锁定，此设备已激活。' };
-            } catch(e) {
-                return { success: false, message: '激活失败: ' + e.message };
-            }
+        // 激活许可证 - 前端本地方案（推荐）
+        // ⚠️ 旧的后端激活方案已停用，所有激活请使用此函数
+        async function activateLicense(username, activationCode) {
+            // 直接调用前端本地激活（推荐方案）
+            return activateLicenseLocal(username, activationCode, 36500);
         }
         
-        // 强制在此设备激活（已简化 - 设备绑定已移除）
-        function forceActivateOnThisDevice(licenseKey, userId = 'user') {
-            // 设备绑定已移除，直接调用普通激活
-            return activateLicense(licenseKey, userId);
-        }
-        
-        // 检查是否已激活
-        function isLicenseActivated() {
-            const activated = localStorage.getItem(LICENSE_STORAGE_KEY);
-            if (!activated) return false;
-            
-            const expiry = localStorage.getItem(LICENSE_EXPIRY_KEY);
-            if (expiry) {
-                const currentTime = Math.floor(Date.now() / 1000);
-                if (currentTime > parseInt(expiry)) {
-                    localStorage.removeItem(LICENSE_STORAGE_KEY);
-                    localStorage.removeItem(LICENSE_EXPIRY_KEY);
-                    localStorage.removeItem(LICENSE_FINGERPRINT_KEY);
-                    return false;
-                }
-            }
-            
-            return activated === 'true';
+        // 强制在此设备激活 - 已废弃（使用 activateLicenseLocal 替代）
+        function forceActivateOnThisDevice(username, activationCode) {
+            return activateLicenseLocal(username, activationCode, 36500);
         }
         
         // 检查是否已激活
@@ -1273,12 +1161,17 @@
                     // 实时更新左上角的许可证按钮显示
                     checkAndDisplayLicenseStatus();
                     
-                    // 隐藏升级按钮和演示版标签
+                    // 隐藏升级按钮和所有横幅
                     const upgradeBtn = document.getElementById('upgrade-license-btn');
                     if (upgradeBtn) upgradeBtn.classList.add('hidden');
                     
+                    // 移除演示版横幅
                     const demoBanner = document.getElementById('demo-banner');
                     if (demoBanner) demoBanner.remove();
+                    
+                    // 移除试用阶段横幅
+                    const trialBanner = document.getElementById('trial-banner');
+                    if (trialBanner) trialBanner.remove();
                     
                     // 恢复 body 顶部 margin
                     document.body.style.marginTop = '0';
@@ -1522,7 +1415,8 @@
             `;
             
             banner.innerHTML = `
-                ℹ️ <strong>试用阶段</strong> - 基础功能完全可用，部分功能受限。
+                ℹ️ <strong>试用阶段（仅1天）</strong> - 基础功能完全可用，部分功能受限。
+                <a href="javascript:void(0)" onclick="showContactInfo()" style="color: #78350f; text-decoration: underline; margin-left: 10px; font-weight: bold;">📧 联系作者</a>
                 <a href="javascript:void(0)" onclick="openActivationModal()" style="color: #78350f; text-decoration: underline; margin-left: 10px; font-weight: bold;">激活许可证</a>
             `;
             
@@ -1530,15 +1424,23 @@
             document.body.style.marginTop = '50px';
         }
         
-        // 限制试用模式功能（禁用导出）
+        // 显示联系作者信息
+        function showContactInfo() {
+            alert('📧 联系作者获取授权码\n\n作者：Suqi Xue\n邮箱：suqi.xue@hdu.edu.cn\n\n说明：填写申请表单后，作者会发送专属的激活码给你。\n\n激活后可以解锁完整功能：\n✓ 数据导出\n✓ 自定义保存\n✓ 全部功能');
+        }
+        
+        // 限制试用模式功能（禁用导出和保存按钮）
         function restrictTrialMode() {
             console.log('🔒 应用试用模式限制...');
             
             // 1. 禁用所有"导出数据"按钮
             const exportButtons = document.querySelectorAll('button');
-            let found = false;
+            let exportFound = false;
+            let saveFound = false;
             exportButtons.forEach(btn => {
                 const text = btn.textContent || btn.innerHTML;
+                
+                // 禁用导出按钮
                 if (text.includes('导出') || text.includes('下载') || text.includes('export') || text.includes('Export')) {
                     btn.disabled = true;
                     btn.style.opacity = '0.5';
@@ -1552,13 +1454,34 @@
                     btn.onclick = function(e) {
                         e.preventDefault();
                         e.stopPropagation();
-                        alert('⏰ 试用模式限制\n\n数据导出功能仅限完整版使用。\n\n激活许可证以解锁全部功能。');
+                        alert('⏰ 试用模式限制\n\n数据导出功能仅限完整版使用。\n\n请联系作者获取授权码：\n📧 suqi.xue@hdu.edu.cn\n\n激活许可证以解锁全部功能。');
                         return false;
                     };
-                    found = true;
+                    exportFound = true;
+                }
+                
+                // 禁用"保存"相关按钮
+                if (text.includes('保存') || text.includes('Save') || text.includes('save')) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                    btn.title = '试用阶段不支持此功能，请激活许可证';
+                    
+                    if (!text.includes('[试用禁用]')) {
+                        btn.textContent = text + ' [试用禁用]';
+                    }
+                    
+                    btn.onclick = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        alert('⏰ 试用模式限制\n\n数据保存功能仅限完整版使用。\n\n请联系作者获取授权码：\n📧 suqi.xue@hdu.edu.cn\n\n激活许可证以解锁全部功能。');
+                        return false;
+                    };
+                    saveFound = true;
                 }
             });
-            console.log(found ? '✅ 禁用导出按钮' : '⚠️ 未找到导出按钮');
+            console.log(exportFound ? '✅ 禁用导出按钮' : '⚠️ 未找到导出按钮');
+            console.log(saveFound ? '✅ 禁用保存按钮' : '⚠️ 未找到保存按钮');
             
             // 2. 隐藏"刷新每日数据"按钮（但可通过开发者工具显示）
             const resetBtn = document.getElementById('btn-reset-daily');
@@ -1642,55 +1565,8 @@
             }
         }
         
-        // 许可证诊断函数（使用统一库）
-        function diagnoseLicense(licenseKey, userId) {
-            console.log('🔍 许可证诊断报告');
-            console.log('═'.repeat(50));
-            console.log('用户ID:', userId);
-            console.log('许可证密钥:', licenseKey);
-            console.log('');
-            
-            try {
-                // 验证许可证
-                const isValid = validateLicenseKey(licenseKey, userId);
-                console.log('✓ 许可证验证结果:', isValid ? '✅ 有效' : '❌ 无效');
-                
-                if (isValid) {
-                    // 提取许可证信息
-                    const info = extractLicenseInfo(licenseKey, userId);
-                    console.log('');
-                    console.log('📊 许可证信息:');
-                    console.log('  - 生成日期:', new Date(info.generatedDate).toLocaleString('zh-CN'));
-                    console.log('  - 有效天数:', info.daysValid, '天');
-                    console.log('  - 许可证类型:', info.daysValid > 36500 ? '永久许可' : info.daysValid + '天有效期');
-                }
-            } catch (error) {
-                console.error('❌ 诊断出错:', error.message);
-            }
-            
-            console.log('═'.repeat(50));
-        }
-        
-        // 许可证诊断函数
-        function licenseDiagnostic() {
-            const userIdInput = document.getElementById('license-user-id');
-            const licenseKeyInput = document.getElementById('license-key-input');
-            const userId = userIdInput.value.trim();
-            const licenseKey = licenseKeyInput.value.trim();
-            
-            if (!userId) {
-                alert('请先输入用户 ID');
-                return;
-            }
-            
-            if (!licenseKey) {
-                alert('请先输入许可证密钥');
-                return;
-            }
-            
-            diagnoseLicense(licenseKey, userId);
-            alert('✅ 诊断完成！请按 F12 打开开发者工具查看详细报告。');
-        }
+        // ⚠️ 旧方案的诊断函数已弃用
+        // 新方案的诊断请使用：showActivationDiagnostics()
         
         // 前端本地激活码诊断
         function showActivationDiagnostics() {
@@ -1987,11 +1863,13 @@
                 <button id="offline-demo-btn" onclick="enableOfflineDemo()">离线演示</button>
             </div>
             
+            <button id="contact-btn" style="width: 100%; margin-top: 10px; padding: 10px 16px; background: #06b6d4; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;" onclick="showContactInfo()">📧 联系作者获取授权码</button>
+            
             <button id="diagnostic-btn" style="width: 100%; margin-top: 10px; padding: 10px 16px; background: #8b5cf6; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;" onclick="showActivationDiagnostics(); alert('✅ 诊断完成！请按 F12 打开开发者工具查看详细报告。')">🔍 诊断激活码</button>
             
             <p style="font-size: 12px; color: #9ca3af; margin-top: 16px; text-align: center;">
                 没有激活码？点击"离线演示"体验完整功能。<br/>
-                获取激活码请联系开发者。<br/>
+                获取激活码请点击"📧 联系作者获取授权码"。<br/>
                 <span style="color: #8b5cf6;">如激活失败，请点击"诊断激活码"查看报告</span>
             </p>
         </div>
