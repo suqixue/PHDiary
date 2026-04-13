@@ -975,7 +975,7 @@
                 const daysRemaining = Math.ceil((expiryTime - now) / (1000 * 60 * 60 * 24));
                 
                 return {
-                    expiryDate: expiryDate.toISOString().split('T')[0],
+                    expiryDate: getLocalDateString(expiryDate),
                     daysRemaining: Math.max(0, daysRemaining),
                     isExpired: daysRemaining <= 0
                 };
@@ -2767,7 +2767,10 @@
 
                 <!-- 最近日记列表 -->
                 <div class="bg-gray-50 rounded-lg p-4">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-3">最近日记</h3>
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-semibold text-gray-800">最近日记</h3>
+                        <button id="toggle-all-diary" class="text-xs bg-purple-500 hover:bg-purple-600 text-white py-1 px-3 rounded transition-all" onclick="toggleAllDiary()">查看全部</button>
+                    </div>
                     <div id="diary-list" class="space-y-3 max-h-96 overflow-y-auto">
                         <div class="text-gray-500 text-sm">暂无日记</div>
                     </div>
@@ -2806,12 +2809,15 @@
                         <span class="text-sm font-semibold text-gray-700 flex items-center">
                             等级进度
                             <i class="fa fa-info-circle text-xs ml-1.5"></i>
-                            <div class="invisible group-hover:visible absolute top-full left-0 mt-2 w-64 p-3 bg-gray-800 text-white text-xs rounded shadow-lg z-50 font-normal leading-relaxed">
-                                <span class="text-blue-300 border-b border-gray-600 block pb-1 mb-1">经验值(EXP)获取来源：</span>
-                                • 完成待办事项: <span class="text-green-400">+5 EXP</span><br>
-                                • 完成番茄钟: <span class="text-green-400">+10 EXP</span><br>
-                                • 提交科研记录: <span class="text-green-400">+20 EXP</span><br>
-                                • 新建项目: <span class="text-green-400">+50 EXP</span>
+                            <div class="invisible group-hover:visible absolute top-full left-0 mt-2 w-80 p-3 bg-gray-800 text-white text-xs rounded shadow-lg z-50 font-normal leading-relaxed">
+                                <span class="text-blue-300 border-b border-gray-600 block pb-1 mb-2 font-bold">📊 经验值(EXP)获取规则：</span>
+                                ✅ 待办完成: <span class="text-green-400">+8 EXP</span>/项<br>
+                                ⏱️ 工作打卡: <span class="text-green-400">+2 EXP</span>/次<br>
+                                🍅 完成番茄钟: <span class="text-green-400">+10 EXP</span>/个<br>
+                                📚 科研记录: <span class="text-green-400">+20 EXP</span>/条<br>
+                                📋 项目新建: <span class="text-green-400">+30 EXP</span>/个<br>
+                                🎯 项目完成: <span class="text-green-400">+60 EXP</span>/个<br>
+                                ⏳ 工作时间: <span class="text-green-400">+10 EXP</span>/小时
                             </div>
                         </span>
                         <span id="achievement-progress-text" class="text-sm font-bold text-blue-600">0 / 100</span>
@@ -3397,8 +3403,9 @@ let projectData = { projects: [] }; // 项目进度数据
         let sessionEditState = null;
         let lastExportFileName = '';
         let autoExportPath = localStorage.getItem('autoExportPath') || '';  // 备份保存位置
+        let diaryExpanded = false;  // 日记是否展开全部
         let todoData = { pending: [], completed: [] };
-        let lastInitilizedDate = new Date().toISOString().split('T')[0]; // 上次初始化日期，用于检查是否需要每日重置
+        let lastInitilizedDate = getLocalDateString(new Date()); // 上次初始化日期，用于检查是否需要每日重置
 
         // 咖啡品牌和品类数据结构
         // 格式: { brandName: { typeName: caffeineValue } }
@@ -3556,8 +3563,16 @@ let projectData = { projects: [] }; // 项目进度数据
             saveData();
         }
 
+        // 【修复】获取本地时区的日期字符串（YYYY-MM-DD格式）
+        function getLocalDateString(date = new Date()) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
         function getTodayString() {
-            return new Date().toISOString().split('T')[0];
+            return getLocalDateString(new Date());
         }
 
         function getCurrentTimeString() {
@@ -3676,7 +3691,7 @@ let projectData = { projects: [] }; // 项目进度数据
             for (let i = -1; i <= 0; i++) {
                 const checkDate = new Date(targetDateStr);
                 checkDate.setDate(checkDate.getDate() + i);
-                const checkDateStr = checkDate.toISOString().split('T')[0];
+                const checkDateStr = getLocalDateString(checkDate);  // 改为本地时区
                 
                 const dayData = workData.records[checkDateStr];
                 if (!dayData) continue;
@@ -3744,7 +3759,7 @@ let projectData = { projects: [] }; // 项目进度数据
             
             const yesterday = new Date(datePart);
             yesterday.setDate(yesterday.getDate() - 1);
-            const yesterdayStr = yesterday.toISOString().split('T')[0];
+            const yesterdayStr = getLocalDateString(yesterday);
             
             // 前一天的部分
             const beforeMidnight = {
@@ -4052,7 +4067,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                             // 自动创建明天的记录
                             const tomorrow = new Date(dateStr);
                             tomorrow.setDate(tomorrow.getDate() + 1);
-                            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+                            const tomorrowStr = getLocalDateString(tomorrow);
                             
                             if (!workData.records[tomorrowStr]) {
                                 workData.records[tomorrowStr] = { workSessions: [], restSessions: [] };
@@ -4095,7 +4110,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                             // 自动创建明天的记录
                             const tomorrow = new Date(dateStr);
                             tomorrow.setDate(tomorrow.getDate() + 1);
-                            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+                            const tomorrowStr = getLocalDateString(tomorrow);
                             
                             if (!workData.records[tomorrowStr]) {
                                 workData.records[tomorrowStr] = { workSessions: [], restSessions: [] };
@@ -4893,6 +4908,9 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 if (typeof updateStatisticsCharts === 'function') {
                     updateStatisticsCharts('week');
                 }
+                if (typeof updateHealthStats === 'function') {
+                    updateHealthStats('week');  // 🔧 添加：更新健康卡片数据
+                }
             }
             
             // 特殊处理achievement-section的数据更新
@@ -5097,7 +5115,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 // 这是一个跨日工作，需要分别保存到前一天和今天
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
-                const yesterdayStr = yesterday.toISOString().split('T')[0];
+                const yesterdayStr = getLocalDateString(yesterday);
                 
                 if (!workData.records[yesterdayStr]) {
                     workData.records[yesterdayStr] = { workSessions: [], restSessions: [] };
@@ -5171,7 +5189,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     // 这是一个跨日工作，需要分别保存到前一天和今天
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+                    const yesterdayStr = getLocalDateString(yesterday);
                     
                     if (!workData.records[yesterdayStr]) {
                         workData.records[yesterdayStr] = { workSessions: [], restSessions: [] };
@@ -5222,7 +5240,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     // 这是跨日休息，需要分别保存
                     const yesterday = new Date();
                     yesterday.setDate(yesterday.getDate() - 1);
-                    const yesterdayStr = yesterday.toISOString().split('T')[0];
+                    const yesterdayStr = getLocalDateString(yesterday);
                     
                     if (!workData.records[yesterdayStr]) {
                         workData.records[yesterdayStr] = { workSessions: [], restSessions: [] };
@@ -5493,6 +5511,11 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             
             // 更新研究和项目统计
             updateResearchAndProjectStats();
+            
+            // 【关键修复】更新统计面板数据（使用当前显示的周期）
+            const currentPeriod = document.querySelector('.stats-period-btn.bg-blue-600')?.getAttribute('data-period') || 'week';
+            updateSummaryStatistics(currentPeriod);
+            updateStatisticsCharts(currentPeriod);
         }
         
         // 渲染工作/休息时间线
@@ -5531,7 +5554,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                         <div class="flex items-start gap-2 p-2 text-sm bg-green-50 rounded border-l-2 border-green-500">
                             <span class="text-green-600">✓</span>
                             <div class="flex-1 min-w-0">
-                                <div class="text-gray-700 break-words">${task.name || task.title || '未命名'}</div>
+                                <div class="text-gray-700 break-words">${task.text || task.name || task.title || '未命名'}</div>
                                 <div class="text-gray-500 text-xs">${task.completedAt || ''}</div>
                             </div>
                         </div>
@@ -5746,7 +5769,9 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             if (!session) {
                 closeSessionModal();
                 return;
-            }
+            } 
+            // ✅ 修改前保存该源日期的原始状态，用于恢复
+            const originalSession = JSON.parse(JSON.stringify(session));
 
             // 【关键修复】检查新的时间段是否会导致跨天
             const [startH, startM] = startTime.split(':').map(Number);
@@ -5827,7 +5852,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     // 在明天创建新记录：00:00 - endTime
                     const tomorrow = new Date();
                     tomorrow.setDate(tomorrow.getDate() + 1);
-                    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+                    const tomorrowStr = getLocalDateString(tomorrow);
                     
                     if (!workData.records[tomorrowStr]) {
                         workData.records[tomorrowStr] = { workSessions: [], restSessions: [] };
@@ -6121,6 +6146,9 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             });
 
             updateSummaryStatistics();  // 添加这一行
+            const period = document.querySelector('.stats-period-btn.bg-blue-600')?.getAttribute('data-period') || 'week';
+            updateStatisticsCharts(period);  // 更新统计图表
+            updateHealthStats(period);  // 添加：更新健康统计卡片
             saveData();
             showActionEmoji('add-coffee', '☕');
             updateIntakeDisplay();
@@ -6164,6 +6192,9 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             });
 
             updateSummaryStatistics();  // 添加这一行
+            const period = document.querySelector('.stats-period-btn.bg-blue-600')?.getAttribute('data-period') || 'week';
+            updateStatisticsCharts(period);  // 更新统计图表
+            updateHealthStats(period);  // 添加：更新健康统计卡片
             saveData();
             showActionEmoji('add-water', '💧');
             updateIntakeDisplay();
@@ -6246,6 +6277,10 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
 
             saveData();
             updateIntakeDisplay();
+            updateSummaryStatistics();  // 添加：更新健康统计
+            const period = document.querySelector('.stats-period-btn.bg-blue-600')?.getAttribute('data-period') || 'week';
+            updateStatisticsCharts(period);  // 添加：更新统计图表按当前周期
+            updateHealthStats(period);  // 添加：更新健康统计卡片
             updateTodayStatus();
         }
 
@@ -6417,6 +6452,9 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
 
             saveData();
             updateSummaryStatistics();  // 更新健康统计卡片
+            const period = document.querySelector('.stats-period-btn.bg-blue-600')?.getAttribute('data-period') || 'week';
+            updateStatisticsCharts(period);  // 更新统计图表
+            updateHealthStats(period);  // 添加：更新健康统计卡片
             updateExerciseDisplay();
             updateTodayStatus();
             document.getElementById('exercise-calories').value = '';
@@ -6468,6 +6506,10 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             exerciseData.records[today] = records.filter(item => item.id !== id);
             saveData();
             updateExerciseDisplay();
+            updateSummaryStatistics();  // 添加：更新健康统计
+            const period = document.querySelector('.stats-period-btn.bg-blue-600')?.getAttribute('data-period') || 'week';
+            updateStatisticsCharts(period);  // 添加：按当前周期更新图表
+            updateHealthStats(period);  // 添加：更新健康统计卡片
             updateTodayStatus();
         }
 
@@ -6791,7 +6833,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 for (let i = 0; i < 7; i++) {
                     const d = new Date(monday);
                     d.setDate(monday.getDate() + i);
-                    dates.push(d.toISOString().split('T')[0]);
+                    dates.push(getLocalDateString(d));
                 }
             } else if (researchCurrentFilter === 'month') {
                 // 本月
@@ -6801,7 +6843,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 
                 for (let i = 1; i <= daysInMonth; i++) {
                     const d = new Date(year, month, i);
-                    dates.push(d.toISOString().split('T')[0]);
+                    dates.push(getLocalDateString(d));
                 }
             }
             return dates;
@@ -7110,7 +7152,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             for (let i = 0; i < days; i++) {
                 const d = new Date(today);
                 d.setDate(d.getDate() - i);
-                dates.push(d.toISOString().split('T')[0]);
+                dates.push(getLocalDateString(d));
             }
             
             dates.forEach(dateStr => {
@@ -7179,7 +7221,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             for (let i = 0; i < days; i++) {
                 const d = new Date(today);
                 d.setDate(d.getDate() - i);
-                const dateStr = d.toISOString().split('T')[0];
+                const dateStr = getLocalDateString(d);
                 
                 if (data[dateStr] && data[dateStr].records) {
                     const dayRecords = data[dateStr].records;
@@ -7228,7 +7270,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             for (let i = 1; i <= nextDays; i++) {
                 const d = new Date(today);
                 d.setDate(d.getDate() + i);
-                const dateStr = d.toISOString().split('T')[0];
+                const dateStr = getLocalDateString(d);
                 
                 // 简单线性预测 + 随机波动
                 const trend = correlation && correlation.length > 0 
@@ -7288,7 +7330,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             for (let i = 0; i < days; i++) {
                 const d = new Date(today);
                 d.setDate(d.getDate() - i);
-                const dateStr = d.toISOString().split('T')[0];
+                const dateStr = getLocalDateString(d);
                 if (data[dateStr]) {
                     exportData.records[dateStr] = data[dateStr];
                 }
@@ -7736,7 +7778,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 const taskNameEl = document.getElementById('selected-task-name');
                 
                 if (pomodoroSelectedTask) {
-                    taskNameEl.textContent = pomodoroSelectedTask.name;
+                    taskNameEl.textContent = pomodoroSelectedTask.text || pomodoroSelectedTask.name;
                     taskDisplay.classList.remove('hidden');
                 } else {
                     taskDisplay.classList.add('hidden');
@@ -7782,7 +7824,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             tasks.forEach(task => {
                 const option = document.createElement('option');
                 option.value = JSON.stringify(task);
-                option.textContent = task.name;
+                option.textContent = task.text || task.name;
                 select.appendChild(option);
             });
         }
@@ -7942,7 +7984,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 const taskDisplay = document.getElementById('pomodoro-selected-task');
                 const taskNameEl = document.getElementById('selected-task-name');
                 if (taskNameEl && taskDisplay) {
-                    taskNameEl.textContent = pomodoroSelectedTask.name;
+                    taskNameEl.textContent = pomodoroSelectedTask.text || pomodoroSelectedTask.name;
                     taskDisplay.classList.remove('hidden');
                 }
             }
@@ -8045,7 +8087,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     }
                 }
                 
-                showToast(`✨ 番茄钟已完成！关联任务：${pomodoroSelectedTask.name}`);
+                showToast(`✨ 番茄钟已完成！关联任务：${pomodoroSelectedTask.text || pomodoroSelectedTask.name}`);
             }
             
             saveData();
@@ -8080,6 +8122,9 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
         }
 
         function initProject() {
+            // 【新增】在该项目初始化时进行数据迁移
+            migrateProjectData();
+            
             renderProjectDisplay();
             renderCompletedProjects();
             
@@ -8094,6 +8139,126 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             }
         }
 
+        // 【新增】项目管理数据结构版本号（用于迁移旧数据）
+        const PROJECT_DATA_VERSION = 2;
+        
+        // 【新增】调试函数 - 在开发者控制台中查看项目数据结构
+        window.debugProjectStructure = function() {
+            console.group('📊 项目数据结构调试');
+            console.log('版本号:', projectData.version || '未设置（旧结构）');
+            console.log('进行中的项目数:', projectData.projects.length);
+            console.log('已完成的项目数:', projectData.completedProjects?.length || 0);
+            
+            if (projectData.projects.length > 0) {
+                console.group('进行中的项目详情：');
+                projectData.projects.forEach((proj, idx) => {
+                    console.log(`\n项目 ${idx + 1}: ${proj.name}`);
+                    console.log(`  • ID: ${proj.id}`);
+                    console.log(`  • 创建于: ${proj.createdAt}`);
+                    console.log(`  • 截止日期: ${proj.deadline || '未设置'}`);
+                    if (proj.subtasks) {
+                        console.log(`  • 子任务数: ${proj.subtasks.length}`);
+                        proj.subtasks.forEach((sub, subIdx) => {
+                            const progress = Math.round((sub.actualMinutes / (sub.plannedHours * 60)) * 100) || 0;
+                            console.log(`    ${subIdx + 1}. [${sub.completed ? '✓' : '○'}] ${sub.title}`);
+                            console.log(`       计划: ${sub.plannedHours}h, 已用: ${(sub.actualMinutes/60).toFixed(2)}h (${progress}%)`);
+                            console.log(`       优先级: ${sub.priority}, 创建: ${sub.createdAt}`);
+                        });
+                    } else {
+                        console.warn('  ⚠️ 此项目使用旧数据结构（没有subtasks），需要迁移！');
+                    }
+                });
+                console.groupEnd();
+            }
+            
+            if (projectData.completedProjects?.length > 0) {
+                console.group('已完成的项目详情：');
+                projectData.completedProjects.forEach((proj, idx) => {
+                    console.log(`\n已完成项目 ${idx + 1}: ${proj.name}`);
+                    console.log(`  • 完成于: ${proj.completedAt}`);
+                    if (proj.subtasks) {
+                        console.log(`  • 子任务数: ${proj.subtasks.length}`);
+                    }
+                });
+                console.groupEnd();
+            }
+            
+            console.groupEnd();
+        };
+        
+        // 【新增】迁移旧项目数据到新结构（兼容性）
+        function migrateProjectData() {
+            if (projectData.version === PROJECT_DATA_VERSION) return;
+            
+            projectData.projects = projectData.projects || [];
+            projectData.completedProjects = projectData.completedProjects || [];
+            
+            let migratedCount = 0;
+            
+            // 升级进行中的项目
+            projectData.projects = projectData.projects.map(proj => {
+                if (proj.subtasks) return proj; // 已是新结构
+                
+                migratedCount++;
+                console.log(`🔄 迁移进行中的项目: "${proj.name}"`);
+                
+                // 迁移旧结构：将原有的 timeSpent 转为单个子任务
+                const subtask = {
+                    id: Date.now() + Math.random(),
+                    title: proj.name,
+                    plannedHours: proj.total || 1,
+                    actualMinutes: proj.timeSpent || 0,
+                    completed: false,
+                    priority: 'medium',
+                    createdAt: proj.createdAt || getTodayString(),
+                    timeLog: proj.timeLog || {}
+                };
+                
+                return {
+                    id: proj.id,
+                    name: proj.name,
+                    deadline: proj.deadline,
+                    createdAt: proj.createdAt,
+                    subtasks: [subtask]
+                };
+            });
+            
+            // 升级已完成的项目
+            projectData.completedProjects = projectData.completedProjects.map(proj => {
+                if (proj.subtasks) return proj;
+                
+                migratedCount++;
+                console.log(`🔄 迁移已完成的项目: "${proj.name}"`);
+                
+                const subtask = {
+                    id: Date.now() + Math.random(),
+                    title: proj.name,
+                    plannedHours: proj.total || 1,
+                    actualMinutes: proj.timeSpent || 0,
+                    completed: true,
+                    priority: 'medium',
+                    createdAt: proj.createdAt || getTodayString(),
+                    timeLog: proj.timeLog || {}
+                };
+                
+                return {
+                    id: proj.id,
+                    name: proj.name,
+                    deadline: proj.deadline,
+                    createdAt: proj.createdAt,
+                    completedAt: proj.completedAt,
+                    subtasks: [subtask]
+                };
+            });
+            
+            projectData.version = PROJECT_DATA_VERSION;
+            
+            if (migratedCount > 0) {
+                console.log(`✅ 项目数据已升级到新结构（已迁移 ${migratedCount} 个项目，支持子任务）`);
+                saveData();
+            }
+        }
+
         function addProject() {
             const name = document.getElementById('project-name').value.trim();
             const total = parseInt(document.getElementById('project-total').value);
@@ -8104,16 +8269,17 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 return;
             }
 
-            projectData.projects.push({
+            // 【改进】使用新数据结构 - 项目包含子任务列表（初始时为空）
+            const newProject = {
                 id: Date.now(),
                 name: name,
-                current: 0,
-                total: total,
+                plannedTotalHours: total,  // 【新增】保存项目目标小时数作为参考
                 deadline: deadline || null,
                 createdAt: getTodayString(),
-                timeSpent: 0,                    // 项目总耗时（分钟）
-                timeLog: {}                      // {日期: [{time: 分钟, date: 日期, timestamp: 时间戳, type: 'pomodoro'}]}
-            });
+                subtasks: []
+            };
+
+            projectData.projects.push(newProject);
 
             document.getElementById('project-name').value = '';
             document.getElementById('project-total').value = '';
@@ -8121,7 +8287,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             
             document.getElementById('project-modal').classList.add('hidden');
             
-            saveData(); // Make sure saveData serializes projectData
+            saveData();
             renderProjectDisplay();
             showToast('项目创建成功');
             // 更新番茄计时的任务选择器
@@ -8129,34 +8295,197 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 populatePomodoroTaskSelect();
             }
         }
+        
+        // 【新增】添加子任务到项目
+        function addSubtaskToProject(projectId) {
+            const project = projectData.projects.find(p => p.id === projectId);
+            if (!project) {
+                showToast('项目不存在');
+                return;
+            }
+            
+            const subtaskTitle = prompt('请输入子任务名称:', '');
+            if (!subtaskTitle) return;
+            
+            const plannedHours = parseFloat(prompt('请输入计划小时数:', '1'));
+            if (isNaN(plannedHours) || plannedHours <= 0) {
+                showToast('请输入有效的小时数');
+                return;
+            }
+            
+            const newSubtask = {
+                id: Date.now(),
+                title: subtaskTitle,
+                plannedHours: plannedHours,
+                actualMinutes: 0,
+                completed: false,
+                priority: 'medium',
+                createdAt: getTodayString(),
+                timeLog: {}
+            };
+            
+            if (!project.subtasks) {
+                project.subtasks = [];
+            }
+            project.subtasks.push(newSubtask);
+            
+            saveData();
+            renderProjectDisplay();
+            showToast(`✅ 子任务"${subtaskTitle}"已添加`);
+        }
+        
+        // 【新增】删除子任务
+        function deleteSubtask(projectId, subtaskId) {
+            const project = projectData.projects.find(p => p.id === projectId);
+            if (!project || !project.subtasks) {
+                showToast('项目或子任务不存在');
+                return;
+            }
+            
+            const subtaskIndex = project.subtasks.findIndex(s => s.id === subtaskId);
+            if (subtaskIndex === -1) {
+                showToast('子任务不存在');
+                return;
+            }
+            
+            if (confirm('确定要删除此子任务吗？')) {
+                project.subtasks.splice(subtaskIndex, 1);
+                
+                // 如果没有子任务了，删除项目
+                if (project.subtasks.length === 0) {
+                    deleteProject(projectId);
+                    return;
+                }
+                
+                saveData();
+                renderProjectDisplay();
+                showToast('✅ 子任务已删除');
+            }
+        }
+        
+        // 【新增】更新子任务时间
+        function updateSubtaskTime(projectId, subtaskId, deltaMinutes) {
+            const project = projectData.projects.find(p => p.id === projectId);
+            if (!project || !project.subtasks) return;
+            
+            const subtask = project.subtasks.find(s => s.id === subtaskId);
+            if (!subtask) return;
+            
+            const plannedMinutes = subtask.plannedHours * 60;
+            const oldMinutes = subtask.actualMinutes || 0;
+            subtask.actualMinutes = Math.max(0, Math.min(plannedMinutes, oldMinutes + deltaMinutes));
+            
+            // 【新增】记录时间日志
+            if (!subtask.timeLog) {
+                subtask.timeLog = {};
+            }
+            
+            const today = getTodayString();
+            if (!subtask.timeLog[today]) {
+                subtask.timeLog[today] = [];
+            }
+            
+            // 如果添加了时间，记录日志
+            if (deltaMinutes > 0) {
+                subtask.timeLog[today].push({
+                    time: deltaMinutes,
+                    date: today,
+                    timestamp: Date.now(),
+                    type: 'manual'
+                });
+            }
+            
+            // 检查是否完成
+            if (subtask.actualMinutes >= plannedMinutes) {
+                subtask.completed = true;
+            }
+            
+            saveData();
+            renderProjectDisplay();
+        }
+        
+        // 【新增】切换子任务完成状态
+        function toggleSubtaskCompletion(projectId, subtaskId) {
+            const project = projectData.projects.find(p => p.id === projectId);
+            if (!project || !project.subtasks) return;
+            
+            const subtask = project.subtasks.find(s => s.id === subtaskId);
+            if (!subtask) return;
+            
+            subtask.completed = !subtask.completed;
+            saveData();
+            renderProjectDisplay();
+            showToast(`✅ 子任务已${subtask.completed ? '完成' : '未完成'}`);
+        }
 
         function updateProjectProgress(id, amount) {
             const proj = projectData.projects.find(p => p.id === id);
-            if (proj) {
-                // 修改的是时间（小时），转换为分钟
-                proj.timeSpent = Math.max(0, Math.min(proj.total * 60, (proj.timeSpent || 0) + amount * 60));
-                checkAndMoveCompletedProject(proj);  // 检查是否达到100%
+            if (proj && proj.subtasks && proj.subtasks.length > 0) {
+                // 【改进】分配时间到第一个未完成的子任务
+                const uncompletedSubtask = proj.subtasks.find(s => !s.completed);
+                if (uncompletedSubtask) {
+                    const deltaMinutes = amount * 60;
+                    const plannedMinutes = uncompletedSubtask.plannedHours * 60;
+                    uncompletedSubtask.actualMinutes = Math.max(0, Math.min(plannedMinutes, (uncompletedSubtask.actualMinutes || 0) + deltaMinutes));
+                    
+                    if (uncompletedSubtask.actualMinutes >= plannedMinutes) {
+                        uncompletedSubtask.completed = true;
+                    }
+                }
+                
+                checkAndMoveCompletedProject(proj);
                 saveData();
                 renderProjectDisplay();
-                renderCompletedProjects();  // 同时刷新已完成项目列表
+                renderCompletedProjects();
             }
         }
 
         function changeProjectCustomProgress(id, value) {
             const proj = projectData.projects.find(p => p.id === id);
-            if (proj) {
+            if (proj && proj.subtasks && proj.subtasks.length > 0) {
                 const deltaHours = parseFloat(value);
                 if (!isNaN(deltaHours) && deltaHours !== 0) {
-                    // 在原有时间的基础上增加减少
-                    const currentMinutes = proj.timeSpent || 0;
-                    const newMinutes = currentMinutes + (deltaHours * 60);
-                    // 确保不超出最大时间
-                    proj.timeSpent = Math.max(0, Math.min(proj.total * 60, newMinutes));
-                    checkAndMoveCompletedProject(proj);  // 检查是否达到100%
+                    // 【改进】分配时间到第一个未完成的子任务
+                    const uncompletedSubtask = proj.subtasks.find(s => !s.completed);
+                    if (uncompletedSubtask) {
+                        const deltaMinutes = deltaHours * 60;
+                        const plannedMinutes = uncompletedSubtask.plannedHours * 60;
+                        uncompletedSubtask.actualMinutes = Math.max(0, Math.min(plannedMinutes, (uncompletedSubtask.actualMinutes || 0) + deltaMinutes));
+                        
+                        if (uncompletedSubtask.actualMinutes >= plannedMinutes) {
+                            uncompletedSubtask.completed = true;
+                        }
+                    }
+                    
+                    checkAndMoveCompletedProject(proj);
                     saveData();
                     renderProjectDisplay();
-                    renderCompletedProjects();  // 同时刷新已完成项目列表
+                    renderCompletedProjects();
                 }
+            }
+        }
+        
+        // 【新增】删除项目
+        function deleteProject(projectId) {
+            const projectIndex = projectData.projects.findIndex(p => p.id === projectId);
+            const completedIndex = projectData.completedProjects?.findIndex(p => p.id === projectId) ?? -1;
+            
+            if (projectIndex === -1 && completedIndex === -1) {
+                showToast('项目不存在');
+                return;
+            }
+            
+            if (confirm('确定要删除此项目吗？此操作不可撤销。')) {
+                if (projectIndex !== -1) {
+                    projectData.projects.splice(projectIndex, 1);
+                } else if (completedIndex !== -1) {
+                    projectData.completedProjects.splice(completedIndex, 1);
+                }
+                
+                saveData();
+                renderProjectDisplay();
+                renderCompletedProjects();
+                showToast('✅ 项目已删除');
             }
         }
 
@@ -8337,6 +8666,19 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 }).join('');
             }
             
+            // 🔧 获取日记信息
+            const diaryContent = diaryData[dateStr] || '';
+            const diaryDetailsHTML = diaryContent ? `
+                <div class="bg-orange-50 rounded-lg border border-orange-300/40 p-4 mb-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="font-semibold text-orange-900">📝 日记小记</p>
+                    </div>
+                    <div class="text-sm text-orange-800 p-3 bg-white rounded border border-orange-200/50 max-h-40 overflow-y-auto whitespace-pre-wrap">
+                        ${diaryContent}
+                    </div>
+                </div>
+            ` : '';
+            
             // 生成任务和科研信息
             const taskDetailsHTML = completedTaskCount > 0 ? `
                 <div class="bg-green-50 rounded-lg border border-green-300/40 p-4 mb-3">
@@ -8346,7 +8688,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     </div>
                     ${completedTasksToday.map(task => `
                         <div class="text-sm text-green-700 border-t border-green-200 pt-2 mt-2">
-                            • ${task.content || task.name || '未命名任务'}
+                            • ${task.text || task.content || task.name || '未命名任务'}
                         </div>
                     `).join('')}
                 </div>
@@ -8473,7 +8815,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             `;
             
             // 设置日期列表和统计
-            const finalListHTML = statsHTML + taskDetailsHTML + researchDetailsHTML + projectDetailsHTML + (listHTML || '');
+            const finalListHTML = statsHTML + diaryDetailsHTML + taskDetailsHTML + researchDetailsHTML + projectDetailsHTML + (listHTML || '');
             document.getElementById('time-dist-list').innerHTML = finalListHTML;
             
             // 设置顶部统计（兼容旧的三个值显示）
@@ -8660,7 +9002,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 const start = new Date(startDate);
                 const end = new Date(endDate);
                 for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                    weekDates.push(d.toISOString().split('T')[0]);
+                    weekDates.push(getLocalDateString(d));
                 }
             } else {
                 const today = new Date(getTodayString());
@@ -8668,7 +9010,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 for (let i = 6; i >= 0; i--) {
                     const date = new Date(today);
                     date.setDate(date.getDate() - i);
-                    weekDates.push(date.toISOString().split('T')[0]);
+                    weekDates.push(getLocalDateString(date));
                 }
                 startDate = weekDates[0];
                 endDate = weekDates[6];
@@ -9425,14 +9767,134 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             document.getElementById('time-distribution-modal').classList.remove('hidden');
         }
 
+        // 【新增】显示项目的详细时间分布
+        function showProjectTimeDistribution(projectId) {
+            const proj = projectData.projects.find(p => p.id === projectId);
+            if (!proj || !proj.subtasks) {
+                showToast('项目不存在');
+                return;
+            }
+            
+            // 汇总所有子任务的时间日志
+            const timeByDate = {};
+            
+            proj.subtasks.forEach(subtask => {
+                const timeLog = subtask.timeLog || {};
+                Object.entries(timeLog).forEach(([date, records]) => {
+                    if (!timeByDate[date]) {
+                        timeByDate[date] = [];
+                    }
+                    
+                    if (Array.isArray(records)) {
+                        records.forEach(record => {
+                            timeByDate[date].push({
+                                subtaskTitle: subtask.title,
+                                time: record.time || 0,
+                                type: record.type || 'manual'
+                            });
+                        });
+                    }
+                });
+            });
+            
+            if (Object.keys(timeByDate).length === 0) {
+                showToast('暂无时间记录');
+                return;
+            }
+            
+            // 计算统计信息
+            let totalMinutes = 0;
+            let totalPomodoroCount = 0;
+            let totalManualCount = 0;
+            let maxDayMinutes = 0;
+            
+            Object.values(timeByDate).forEach(dayRecords => {
+                let dayTotal = 0;
+                dayRecords.forEach(record => {
+                    dayTotal += record.time || 0;
+                    if (record.type === 'pomodoro') {
+                        totalPomodoroCount++;
+                    } else {
+                        totalManualCount++;
+                    }
+                });
+                totalMinutes += dayTotal;
+                maxDayMinutes = Math.max(maxDayMinutes, dayTotal);
+            });
+            
+            const totalHours = (totalMinutes / 60).toFixed(1);
+            const maxHours = (maxDayMinutes / 60).toFixed(1);
+            const daysCount = Object.keys(timeByDate).length;
+            const avgHours = (totalMinutes / 60 / daysCount).toFixed(1);
+            
+            // 构建时间分布列表
+            const sortedDates = Object.keys(timeByDate).sort().reverse();
+            const listHTML = sortedDates.map(date => {
+                const dayRecords = timeByDate[date];
+                let dayTotalMinutes = 0;
+                let pomodoroCount = 0;
+                
+                const dayRecordsHTML = dayRecords.map(record => {
+                    dayTotalMinutes += record.time;
+                    if (record.type === 'pomodoro') pomodoroCount++;
+                    
+                    const hours = Math.floor(record.time / 60);
+                    const minutes = record.time % 60;
+                    const timeStr = hours > 0 ? `${hours}h${minutes}m` : `${minutes}m`;
+                    const typeLabel = record.type === 'pomodoro' ? '🍅' : '⏱️';
+                    
+                    return `
+                        <div class="text-xs text-gray-600 ml-3 py-0.5">
+                            <span>${typeLabel} ${record.subtaskTitle}</span>
+                            <span class="float-right text-gray-700 font-medium">${timeStr}</span>
+                        </div>
+                    `;
+                }).join('');
+                
+                const dateObj = new Date(date + 'T00:00:00');
+                const weekDay = ['日', '一', '二', '三', '四', '五', '六'][dateObj.getDay()];
+                const displayDate = `${date} (周${weekDay})`;
+                
+                const dayHours = Math.floor(dayTotalMinutes / 60);
+                const dayMins = dayTotalMinutes % 60;
+                
+                return `
+                    <div class="flex items-start justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors mb-2">
+                        <div class="flex-1">
+                            <p class="font-medium text-gray-800 text-sm">${displayDate}</p>
+                            <div class="text-xs text-gray-500 mt-1">${pomodoroCount > 0 ? pomodoroCount + '个番茄钟' : '无番茄'}</div>
+                            ${dayRecordsHTML}
+                        </div>
+                        <div class="text-right ml-3">
+                            <p class="font-bold text-blue-600">${dayHours}h${dayMins}m</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            // 更新模态框内容
+            document.getElementById('time-dist-title').innerHTML = `<h3 class="text-xl font-bold text-gray-800">${proj.name} - 时间分布 (${daysCount}天)</h3>`;
+            document.getElementById('time-dist-total').textContent = `${totalHours}h`;
+            document.getElementById('time-dist-avg').textContent = `${avgHours}h`;
+            document.getElementById('time-dist-max').textContent = `${maxHours}h`;
+            document.getElementById('time-dist-list').innerHTML = listHTML || '<p class="text-center text-gray-500 py-4">暂无时间记录</p>';
+            
+            // 显示模态框
+            document.getElementById('time-distribution-modal').classList.remove('hidden');
+        }
+
         function renderProjectDisplay() {
             const container = document.getElementById('project-list');
             if (!container) return;
 
             // 只显示进行中的项目（不是已完成的）
             const ongoingProjects = projectData.projects.filter(p => {
-                const percent = Math.min(Math.round((p.timeSpent || 0) / 60 / p.total * 100), 100);
-                return percent < 100;
+                if (!p.subtasks) return false;
+                // 【改进】如果没有子任务，项目仍然被视为进行中（用户可以添加子任务）
+                if (p.subtasks.length === 0) return true;
+                // 如果有子任务，检查是否所有都完成了
+                const allCompleted = p.subtasks.every(s => s.completed || s.actualMinutes >= (s.plannedHours * 60));
+                return !allCompleted;
             });
 
             if (ongoingProjects.length === 0) {
@@ -9441,19 +9903,25 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             }
 
             container.innerHTML = ongoingProjects.map(proj => {
-                // 改为基于时间的进度计算
-                const timeSpentHours = proj.timeSpent ? (proj.timeSpent / 60).toFixed(2) : '0.00';
-                const targetHours = proj.total;
-                const currentValue = proj.current || 0;
-                const targetValue = proj.total > 0 ? proj.total : 1;
-
-                // 使用timeSpent的小时数作为进度计算
-                const timeProgressPercent = proj.timeSpent > 0 ? Math.round((proj.timeSpent / 60 / proj.total) * 100) : 0;
-                const percent = Math.min(timeProgressPercent, 100);
+                if (!proj.subtasks) {
+                    return '<div class="col-span-full text-center text-gray-500 py-4">项目数据格式不正确</div>';
+                }
+                
+                // 【改进】计算项目总进度（所有子任务的综合进度）
+                const totalPlannedMinutes = proj.subtasks.reduce((sum, s) => sum + (s.plannedHours * 60), 0);
+                const totalActualMinutes = proj.subtasks.reduce((sum, s) => sum + (s.actualMinutes || 0), 0);
+                
+                // 如果没有子任务，使用 plannedTotalHours 作为参考目标
+                const referenceHours = totalPlannedMinutes > 0 ? (totalPlannedMinutes / 60) : (proj.plannedTotalHours || 0);
+                const projectProgressPercent = referenceHours > 0 ? Math.round((totalActualMinutes / (referenceHours * 60)) * 100) : 0;
+                const projectPercent = Math.min(projectProgressPercent, 100);
+                
+                const projectHoursSpent = (totalActualMinutes / 60).toFixed(2);
+                const projectTotalHours = (totalPlannedMinutes > 0 ? totalPlannedMinutes / 60 : proj.plannedTotalHours || 0).toFixed(2);
                 
                 let statusColor = 'bg-blue-500';
-                if (percent >= 100) statusColor = 'bg-green-500';
-                else if (percent > 0) statusColor = 'bg-primary';
+                if (projectPercent >= 100) statusColor = 'bg-green-500';
+                else if (projectPercent > 0) statusColor = 'bg-primary';
 
                 let deadlineHtml = '';
                 if (proj.deadline) {
@@ -9467,36 +9935,83 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     const tlText = diffDays < 0 ? `已逾期 ${Math.abs(diffDays)} 天` : `还剩 ${diffDays} 天`;
                     deadlineHtml = `<div class="text-xs ${color}"><i class="fa fa-clock-o mr-1"></i>截: ${proj.deadline} (${tlText})</div>`;
                 }
+                
+                // 【新增】构建子任务列表HTML
+                const subtasksHTML = proj.subtasks.map((subtask, index) => {
+                    const subtaskProgressPercent = subtask.plannedHours > 0 ? Math.round((subtask.actualMinutes / (subtask.plannedHours * 60)) * 100) : 0;
+                    const subtaskPercent = Math.min(subtaskProgressPercent, 100);
+                    const subtaskHours = (subtask.actualMinutes / 60).toFixed(2);
+                    
+                    let subtaskColor = 'bg-gray-300';
+                    if (subtask.completed) subtaskColor = 'bg-green-500';
+                    else if (subtaskPercent >= 75) subtaskColor = 'bg-yellow-500';
+                    else if (subtaskPercent > 0) subtaskColor = 'bg-blue-400';
+                    
+                    const priorityColors = { high: 'text-red-600', medium: 'text-yellow-600', low: 'text-green-600' };
+                    const priorityLabels = { high: '高', medium: '中', low: '低' };
+                    
+                    return `
+                        <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-2">
+                            <div class="flex items-start justify-between mb-2">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <input type="checkbox" ${subtask.completed ? 'checked' : ''} 
+                                            onchange="toggleSubtaskCompletion(${proj.id}, ${subtask.id})" 
+                                            class="rounded border-gray-300 cursor-pointer">
+                                        <span class="font-semibold text-gray-700 ${subtask.completed ? 'line-through text-gray-500' : ''}">${subtask.title}</span>
+                                        <span class="${priorityColors[subtask.priority] || 'text-gray-500'} text-xs font-semibold">[${priorityLabels[subtask.priority] || '中'}]</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-1">${subtaskHours}h / ${subtask.plannedHours}h (${subtaskPercent}%)</div>
+                                </div>
+                                <button onclick="deleteSubtask(${proj.id}, ${subtask.id})" class="text-gray-400 hover:text-red-500 text-sm">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2 overflow-hidden">
+                                <div class="${subtaskColor} h-1.5 rounded-full" style="width: ${subtaskPercent}%"></div>
+                            </div>
+                            
+                            <div class="flex items-center gap-1 flex-wrap">
+                                <button onclick="updateSubtaskTime(${proj.id}, ${subtask.id}, -30)" class="px-2 py-0.5 text-xs bg-gray-200 hover:bg-gray-300 rounded">-30m</button>
+                                <button onclick="updateSubtaskTime(${proj.id}, ${subtask.id}, 30)" class="px-2 py-0.5 text-xs bg-gray-200 hover:bg-gray-300 rounded">+30m</button>
+                                <button onclick="updateSubtaskTime(${proj.id}, ${subtask.id}, 60)" class="px-2 py-0.5 text-xs bg-blue-100 hover:bg-blue-200 rounded text-blue-700">+1h</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
 
                 return `
-                    <div class="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow relative">
-                        <button onclick="deleteProject(${proj.id})" class="absolute top-3 right-3 text-gray-300 hover:text-red-500 transition-colors">
-                            <i class="fa fa-trash"></i>
-                        </button>
-                        
-                        <h3 class="font-bold text-lg text-gray-800 pr-8 mb-1">${proj.name}</h3>
-                        ${deadlineHtml}
-                        
-                        <div class="mt-4 mb-2 flex justify-between text-sm text-gray-600 font-medium">
-                            <span>进度: ${percent}%</span>
-                            <button onclick="showProjectTimeDistribution(${proj.id})" class="text-blue-600 hover:text-blue-800 cursor-pointer underline">
-                                ${timeSpentHours}h / ${targetHours}h <i class="fa fa-bar-chart ml-1"></i>
+                    <div class="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-start justify-between mb-3">
+                            <div class="flex-1">
+                                <h3 class="font-bold text-lg text-gray-800 mb-1">${proj.name}</h3>
+                                ${deadlineHtml}
+                                <div class="text-xs text-gray-500 mt-1">📋 ${proj.subtasks.length} 个子任务</div>
+                            </div>
+                            <button onclick="deleteProject(${proj.id})" class="text-gray-400 hover:text-red-500 transition-colors ml-2">
+                                <i class="fa fa-trash"></i>
                             </button>
                         </div>
                         
-                        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4 overflow-hidden">
-                            <div class="${statusColor} h-2.5 rounded-full transition-all duration-500" style="width: ${percent}%"></div>
+                        <div class="mb-3 pb-3 border-b border-gray-200">
+                            <div class="flex justify-between items-center text-sm font-medium mb-2">
+                                <span class="text-gray-600">项目进度: ${projectPercent}%</span>
+                                <a href="javascript:void(0)" onclick="showProjectTimeDistribution(${proj.id})" class="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-semibold">
+                                    ${projectHoursSpent}h / ${projectTotalHours}h <i class="fa fa-bar-chart ml-1"></i>
+                                </a>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                                <div class="${statusColor} h-2.5 rounded-full transition-all duration-500" style="width: ${projectPercent}%"></div>
+                            </div>
                         </div>
                         
-                        <div class="flex items-center gap-2">
-                            <button onclick="updateProjectProgress(${proj.id}, -1)" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 font-bold">-</button>
-                            
-                            <div class="flex-1 relative">
-                                <input type="number" onblur="changeProjectCustomProgress(${proj.id}, this.value); this.value='0'" value="0" step="0.01" class="w-full text-center border rounded-lg py-1 px-2 text-gray-700 outline-none focus:ring-1 focus:ring-primary h-8 leading-none" style="-moz-appearance: textfield;" placeholder="+或-数字">
-                                <div class="text-xs text-gray-500 text-center mt-1">当前: ${timeSpentHours}h</div>
-                            </div>
-                            
-                            <button onclick="updateProjectProgress(${proj.id}, 1)" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 font-bold">+</button>
+                        <div class="mb-3">
+                            <div class="text-sm font-semibold text-gray-700 mb-2">子任务列表：</div>
+                            ${subtasksHTML}
+                            <button onclick="addSubtaskToProject(${proj.id})" class="w-full mt-2 py-2 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg border border-dashed border-blue-300 transition">
+                                <i class="fa fa-plus mr-1"></i> 添加子任务
+                            </button>
                         </div>
                     </div>
                 `;
@@ -9505,11 +10020,15 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
 
         // 检查项目是否达到100%完成，如果是则移到已完成列表
         function checkAndMoveCompletedProject(proj) {
-            const percent = Math.min(Math.round((proj.timeSpent || 0) / 60 / proj.total * 100), 100);
-            if (percent >= 100) {
+            if (!proj || !proj.subtasks) return;
+            
+            // 【改进】项目完成 = 所有子任务都完成
+            const allCompleted = proj.subtasks.every(s => s.completed || s.actualMinutes >= (s.plannedHours * 60));
+            
+            if (allCompleted && proj.subtasks.length > 0) {
                 // 从进行中移到已完成
                 projectData.projects = projectData.projects.filter(p => p.id !== proj.id);
-                proj.completedAt = new Date().toISOString().split('T')[0];  // 记录完成日期
+                proj.completedAt = getLocalDateString(new Date());
                 projectData.completedProjects = projectData.completedProjects || [];
                 projectData.completedProjects.push(proj);
                 
@@ -9531,25 +10050,48 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             }
 
             container.innerHTML = projectData.completedProjects.map(proj => {
-                const timeSpentHours = proj.timeSpent ? (proj.timeSpent / 60).toFixed(2) : '0.00';
-                const targetHours = proj.total;
+                if (!proj.subtasks) {
+                    return '<div class="col-span-full text-center text-gray-500 py-4">项目数据格式不正确</div>';
+                }
+                
+                // 【改进】计算项目总量
+                const totalPlannedMinutes = proj.subtasks.reduce((sum, s) => sum + (s.plannedHours * 60), 0);
+                const totalActualMinutes = proj.subtasks.reduce((sum, s) => sum + (s.actualMinutes || 0), 0);
+                const projectHoursSpent = (totalActualMinutes / 60).toFixed(2);
+                const projectTotalHours = (totalPlannedMinutes / 60).toFixed(2);
                 const completedDate = proj.completedAt || '未知';
+                
+                // 构建已完成子任务列表
+                const completedSubtasksHTML = proj.subtasks.map(subtask => {
+                    const subtaskHours = (subtask.actualMinutes / 60).toFixed(2);
+                    return `
+                        <div class="text-xs text-green-700 flex items-center gap-1">
+                            <i class="fa fa-check-circle"></i>
+                            <span>${subtask.title}</span>
+                            <span class="text-gray-600">(${subtaskHours}h/${subtask.plannedHours}h)</span>
+                        </div>
+                    `;
+                }).join('');
 
                 return `
-                    <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow relative">
-                        <button onclick="deleteProject(${proj.id})" class="absolute top-3 right-3 text-gray-300 hover:text-red-500 transition-colors">
-                            <i class="fa fa-trash"></i>
-                        </button>
-                        
-                        <div class="flex items-start gap-3">
-                            <span class="text-2xl">✅</span>
+                    <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <span class="text-2xl">✅</span>
+                            </div>
                             <div class="flex-1">
-                                <h3 class="font-bold text-lg text-green-800 mb-1">${proj.name}</h3>
-                                <div class="text-sm text-green-700">
-                                    <span><i class="fa fa-check-circle mr-1"></i>已完成 ${timeSpentHours}h/${targetHours}h</span>
+                                <h3 class="font-bold text-lg text-green-800 mb-2">${proj.name}</h3>
+                                <div class="text-sm text-green-700 mb-2">
+                                    <span><i class="fa fa-check-circle mr-1"></i>已完成 ${projectHoursSpent}h/${projectTotalHours}h</span>
                                     <span class="ml-3"><i class="fa fa-calendar mr-1"></i>${completedDate}</span>
                                 </div>
+                                <div class="text-xs text-green-700 space-y-1">
+                                    ${completedSubtasksHTML}
+                                </div>
                             </div>
+                            <button onclick="deleteProject(${proj.id})" class="text-gray-400 hover:text-red-500 transition-colors ml-2">
+                                <i class="fa fa-trash"></i>
+                            </button>
                         </div>
                     </div>
                 `;
@@ -9633,7 +10175,9 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     });
                     this.classList.add('bg-primary', 'text-white');
                     this.classList.remove('bg-gray-200', 'text-gray-700');
-                    updateStatisticsCharts(period);
+                    updateSummaryStatistics(period);  // 添加：更新核心指标
+                    updateStatisticsCharts(period);  // 更新图表
+                    updateHealthStats(period);  // 添加：更新健康统计
                 });
             });
 
@@ -9919,7 +10463,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             // 遍历日期范围
             const currentDate = new Date(startDate);
             while (currentDate <= endDate) {
-                const dateStr = currentDate.toISOString().split('T')[0];
+                const dateStr = getLocalDateString(currentDate);  // 改为本地时区
                 
                 // 运动统计
                 const exercises = exerciseData.records[dateStr] || [];
@@ -9976,10 +10520,22 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             }
             
             // 更新时间周期标签
-            const periodLabel = document.getElementById('hydration-period-label');
-            if (periodLabel) {
+            const exercisePeriodLabel = document.getElementById('exercise-period-label');
+            if (exercisePeriodLabel) {
                 const periodText = period === 'week' ? '本周' : period === 'month' ? '本月' : period === 'year' ? '本年' : '今日';
-                periodLabel.textContent = periodText;
+                exercisePeriodLabel.textContent = periodText;
+            }
+            
+            const coffeePeriodLabel = document.getElementById('coffee-period-label');
+            if (coffeePeriodLabel) {
+                const periodText = period === 'week' ? '本周' : period === 'month' ? '本月' : period === 'year' ? '本年' : '今日';
+                coffeePeriodLabel.textContent = periodText;
+            }
+            
+            const hydrationPeriodLabel = document.getElementById('hydration-period-label');
+            if (hydrationPeriodLabel) {
+                const periodText = period === 'week' ? '本周' : period === 'month' ? '本月' : period === 'year' ? '本年' : '今日';
+                hydrationPeriodLabel.textContent = periodText;
             }
         }
 
@@ -10040,7 +10596,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     for (let day = 1; day <= 31; day++) {
                         const d = new Date(targetYear, targetMonth, day);
                         if (d.getMonth() !== targetMonth) break;
-                        const dateStr = d.toISOString().split('T')[0];
+                        const dateStr = getLocalDateString(d);  // 改为本地时区
                         const dayData = workData.records[dateStr];
                         if (dayData?.workSessions) {
                             dayData.workSessions.forEach(s => { if (s.duration) total += s.duration; });
@@ -10053,7 +10609,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 let currentDate = new Date(startDate);
                 currentDate.setHours(0, 0, 0, 0);
                 while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dateStr = getLocalDateString(currentDate);  // 改为本地时区
                     const dayData = workData.records[dateStr];
                     let total = 0;
                     if (dayData?.workSessions) {
@@ -10079,7 +10635,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     for (let day = 1; day <= 31; day++) {
                         const d = new Date(targetYear, targetMonth, day);
                         if (d.getMonth() !== targetMonth) break;
-                        const dateStr = d.toISOString().split('T')[0];
+                        const dateStr = getLocalDateString(d);  // 改为本地时区
                         const dayData = workData.records[dateStr];
                         if (dayData?.restSessions) {
                             dayData.restSessions.forEach(s => { if (s.duration) total += s.duration; });
@@ -10092,7 +10648,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 let currentDate = new Date(startDate);
                 currentDate.setHours(0, 0, 0, 0);
                 while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dateStr = getLocalDateString(currentDate);
                     const dayData = workData.records[dateStr];
                     let total = 0;
                     if (dayData?.restSessions) {
@@ -10117,7 +10673,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     for (let day = 1; day <= 31; day++) {
                         const d = new Date(targetYear, targetMonth, day);
                         if (d.getMonth() !== targetMonth) break;
-                        const dateStr = d.toISOString().split('T')[0];
+                        const dateStr = getLocalDateString(d);
                         total += intakeData.coffee.records[dateStr]?.count || 0;
                     }
                     data.push(total);
@@ -10127,7 +10683,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 let currentDate = new Date(startDate);
                 currentDate.setHours(0, 0, 0, 0);
                 while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dateStr = getLocalDateString(currentDate);
                     data.push(intakeData.coffee.records[dateStr]?.count || 0);
                     currentDate.setDate(currentDate.getDate() + 1);
                 }
@@ -10147,7 +10703,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     for (let day = 1; day <= 31; day++) {
                         const d = new Date(targetYear, targetMonth, day);
                         if (d.getMonth() !== targetMonth) break;
-                        const dateStr = d.toISOString().split('T')[0];
+                        const dateStr = getLocalDateString(d);
                         total += intakeData.coffee.records[dateStr]?.caffeine || 0;
                     }
                     data.push(total);
@@ -10157,7 +10713,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 let currentDate = new Date(startDate);
                 currentDate.setHours(0, 0, 0, 0);
                 while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dateStr = getLocalDateString(currentDate);
                     data.push(intakeData.coffee.records[dateStr]?.caffeine || 0);
                     currentDate.setDate(currentDate.getDate() + 1);
                 }
@@ -10177,7 +10733,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     for (let day = 1; day <= 31; day++) {
                         const d = new Date(targetYear, targetMonth, day);
                         if (d.getMonth() !== targetMonth) break;
-                        const dateStr = d.toISOString().split('T')[0];
+                        const dateStr = getLocalDateString(d);
                         total += intakeData.water.records[dateStr]?.count || 0;
                     }
                     data.push(total);
@@ -10187,7 +10743,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 let currentDate = new Date(startDate);
                 currentDate.setHours(0, 0, 0, 0);
                 while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dateStr = getLocalDateString(currentDate);
                     data.push(intakeData.water.records[dateStr]?.count || 0);
                     currentDate.setDate(currentDate.getDate() + 1);
                 }
@@ -10207,7 +10763,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     for (let day = 1; day <= 31; day++) {
                         const d = new Date(targetYear, targetMonth, day);
                         if (d.getMonth() !== targetMonth) break;
-                        const dateStr = d.toISOString().split('T')[0];
+                        const dateStr = getLocalDateString(d);  // 改为本地时区
                         total += (exerciseData.records[dateStr] || []).length;
                     }
                     data.push(total);
@@ -10217,7 +10773,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 let currentDate = new Date(startDate);
                 currentDate.setHours(0, 0, 0, 0);
                 while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dateStr = getLocalDateString(currentDate);  // 改为本地时区
                     data.push((exerciseData.records[dateStr] || []).length);
                     currentDate.setDate(currentDate.getDate() + 1);
                 }
@@ -10237,7 +10793,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     for (let day = 1; day <= 31; day++) {
                         const d = new Date(targetYear, targetMonth, day);
                         if (d.getMonth() !== targetMonth) break;
-                        const dateStr = d.toISOString().split('T')[0];
+                        const dateStr = getLocalDateString(d);  // 改为本地时区
                         const dayTotal = (exerciseData.records[dateStr] || []).reduce((sum, e) => sum + (e.calories || 0), 0);
                         total += dayTotal;
                     }
@@ -10248,7 +10804,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 let currentDate = new Date(startDate);
                 currentDate.setHours(0, 0, 0, 0);
                 while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dateStr = getLocalDateString(currentDate);
                     const total = (exerciseData.records[dateStr] || []).reduce((sum, e) => sum + (e.calories || 0), 0);
                     data.push(total);
                     currentDate.setDate(currentDate.getDate() + 1);
@@ -10352,7 +10908,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     for (let day = 1; day <= 31; day++) {
                         const d = new Date(targetYear, targetMonth, day);
                         if (d.getMonth() !== targetMonth) break;
-                        const dateStr = d.toISOString().split('T')[0];
+                        const dateStr = getLocalDateString(d);
                         const moodRecords = allMoodData[dateStr]?.records || [];
                         moodRecords.forEach(r => {
                             totalMood += (r.mood === 'happy' ? 3 : r.mood === 'okay' ? 2 : 1);
@@ -10366,7 +10922,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 let currentDate = new Date(startDate);
                 currentDate.setHours(0, 0, 0, 0);
                 while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dateStr = getLocalDateString(currentDate);
                     const moodRecords = allMoodData[dateStr]?.records || [];
                     const moodValue = moodRecords.length > 0 ? 
                         moodRecords.reduce((sum, r) => sum + (r.mood === 'happy' ? 3 : r.mood === 'okay' ? 2 : 1), 0) / moodRecords.length : 2;
@@ -10393,7 +10949,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     for (let day = 1; day <= 31; day++) {
                         const d = new Date(targetYear, targetMonth, day);
                         if (d.getMonth() !== targetMonth) break;
-                        const dateStr = d.toISOString().split('T')[0];
+                        const dateStr = getLocalDateString(d);
                         const moodRecords = allMoodData[dateStr]?.records || [];
                         moodRecords.forEach(r => {
                             totalPressure += (r.pressure || 50);
@@ -10407,7 +10963,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 let currentDate = new Date(startDate);
                 currentDate.setHours(0, 0, 0, 0);
                 while (currentDate <= endDate) {
-                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const dateStr = getLocalDateString(currentDate);
                     const moodRecords = allMoodData[dateStr]?.records || [];
                     const avgPressure = moodRecords.length > 0 ? 
                         moodRecords.reduce((sum, r) => sum + (r.pressure || 50), 0) / moodRecords.length : 50;
@@ -10533,16 +11089,17 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             });
         }
 
-        function updateSummaryStatistics() {
+        function updateSummaryStatistics(period = 'week') {
             const today = getTodayString();
-            const { startDate, endDate, labels } = getDateRange('week');
+            const { startDate, endDate, labels } = getDateRange(period);
             
-            // 本周工作统计
+            // 本周期工作统计
             let weekTotalWork = 0, weekTotalRest = 0;
-            for (let i = 0; i < 7; i++) {
+            for (let i = 0; i < (period === 'year' ? 365 : period === 'month' ? 31 : 7); i++) {
                 const d = new Date(startDate);
                 d.setDate(startDate.getDate() + i);
-                const dateStr = d.toISOString().split('T')[0];
+                if (d > endDate) break;
+                const dateStr = getLocalDateString(d);  // 改为本地时区
                 const dayData = workData.records[dateStr] || {};
                 dayData.workSessions?.forEach(s => { if (s.duration) weekTotalWork += s.duration; });
                 dayData.restSessions?.forEach(s => { if (s.duration) weekTotalRest += s.duration; });
@@ -10557,10 +11114,11 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             
             // 专注指数 = 平均每次工作时长 / 建议时长(50分钟)
             let sessionsCount = 0;
-            for (let i = 0; i < 7; i++) {
+            for (let i = 0; i < (period === 'year' ? 365 : period === 'month' ? 31 : 7); i++) {
                 const d = new Date(startDate);
                 d.setDate(startDate.getDate() + i);
-                const dateStr = d.toISOString().split('T')[0];
+                if (d > endDate) break;
+                const dateStr = getLocalDateString(d);  // 改为本地时区
                 const dayData = workData.records[dateStr] || {};
                 sessionsCount += (dayData.workSessions?.length || 0);
             }
@@ -10568,19 +11126,41 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             const focusIndex = Math.min(100, Math.round((avgSessionDuration / 50) * 100));
             document.getElementById('focus-index').textContent = focusIndex + '%';
             
-            // 身心指数 = (运动 + 饮水 + 心情好度 - 咖啡因超标) 的综合评分
-            let todayExerciseCount = (exerciseData.records[today] || []).length;
-            let todayWater = intakeData.water.records[today]?.count || 0;
-            let todayMood = 50; // 默认50
+            // 身心指数 = (运动 + 饮水 + 心情好度) 的综合评分（按选定周期计算）
+            let periodExerciseCount = 0;
+            let periodWater = 0;
+            let periodMood = 50; // 默认50
+            
+            for (let i = 0; i < (period === 'year' ? 365 : period === 'month' ? 31 : 7); i++) {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                if (d > endDate) break;
+                const dateStr = getLocalDateString(d);  // 改为本地时区
+                periodExerciseCount += (exerciseData.records[dateStr] || []).length;
+                periodWater += intakeData.water.records[dateStr]?.count || 0;
+            }
+            
             const savedMoodData = localStorage.getItem('moodData');
             if (savedMoodData) {
-                const moodRecords = JSON.parse(savedMoodData)[today];
-                if (moodRecords?.records?.length > 0) {
-                    const avgPressure = moodRecords.records.reduce((sum, r) => sum + (r.pressure || 50), 0) / moodRecords.records.length;
-                    todayMood = 100 - avgPressure;
+                const moodData = JSON.parse(savedMoodData);
+                let totalMood = 0, moodDays = 0;
+                for (let i = 0; i < (period === 'year' ? 365 : period === 'month' ? 31 : 7); i++) {
+                    const d = new Date(startDate);
+                    d.setDate(startDate.getDate() + i);
+                    if (d > endDate) break;
+                    const dateStr = getLocalDateString(d);  // 改为本地时区
+                    const moodRecords = moodData[dateStr];
+                    if (moodRecords?.records?.length > 0) {
+                        const avgPressure = moodRecords.records.reduce((sum, r) => sum + (r.pressure || 50), 0) / moodRecords.records.length;
+                        totalMood += (100 - avgPressure);
+                        moodDays++;
+                    }
                 }
+                if (moodDays > 0) periodMood = totalMood / moodDays;
             }
-            const healthIndex = Math.round((todayExerciseCount * 10 + Math.min(100, todayWater / 20) + todayMood) / 3);
+            
+            const daysInPeriod = Math.max(1, Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1);
+            const healthIndex = Math.round(((periodExerciseCount / daysInPeriod) * 10 + Math.min(100, (periodWater / daysInPeriod) / 0.2) + periodMood) / 3);
             document.getElementById('health-index').textContent = Math.max(0, Math.min(100, healthIndex)) + 'pts';
             
             // 今日任务完成情况
@@ -10615,18 +11195,14 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             document.getElementById('research-data').textContent = researchStats.data;
             document.getElementById('research-meeting').textContent = researchStats.meeting;
             
-            // 咖啡因、饮水、入厕相关的显示已移到 updateHealthStats() 函数处理
-            // 调用 updateHealthStats 更新健康卡片显示
-            const currentPeriod = document.querySelector('.stats-period-btn.bg-blue-600')?.getAttribute('data-period') || 'week';
-            if (typeof updateHealthStats === 'function') {
-                updateHealthStats(currentPeriod);
-            }
+            // 咖啡因、饮水、入厕相关的显示已由updateHealthStats()函数处理
+            // 注：updateHealthStats已由周期按钮事件或其他地方调用
             
             // 获取今日咖啡因摄入（用于健康建议）
             const todayCaffeine = intakeData.coffee.records[today]?.caffeine || 0;
             
-            // 生成健康建议
-            generateHealthTips(efficiency, focusIndex, healthIndex, todayCaffeine, todayWater, todayExerciseCount);
+            // 生成健康建议（使用当前期间的数据）
+            generateHealthTips(efficiency, focusIndex, healthIndex, todayCaffeine, periodWater, periodExerciseCount);
         }
         
         function generateHealthTips(efficiency, focus, health, caffeine, water, exercises) {
@@ -10674,7 +11250,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             // 入厕
             const peeCount = excretionData.records[today]?.pee?.count || 0;
             const poopCount = excretionData.records[today]?.poop?.count || 0;
-            document.getElementById('today-toilet-count').textContent = `💛${peeCount} 💩${poopCount}`;
+            document.getElementById('today-toilet-count').textContent = `💧${peeCount} 💩${poopCount}`;
 
             // 运动
             const todayExercises = exerciseData.records[today] || [];
@@ -10823,7 +11399,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             
             diaryData[date] = content;
             localStorage.setItem('diaryData', JSON.stringify(diaryData));
-            saveData();
+            saveData();  // ✅ 确保调用saveData()保存到localStorage
             showToast('日记已保存 🎉');
             renderDiaryList();
         }
@@ -10851,16 +11427,27 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             document.getElementById('diary-char-count').textContent = `${count} / 5000`;
         }
 
+        function toggleAllDiary() {
+            diaryExpanded = !diaryExpanded;
+            renderDiaryList();
+        }
+
         function renderDiaryList() {
             const container = document.getElementById('diary-list');
+            const toggleBtn = document.getElementById('toggle-all-diary');
             const dates = Object.keys(diaryData).sort().reverse();
             
             if (dates.length === 0) {
                 container.innerHTML = '<div class="text-gray-500 text-sm">暂无日记</div>';
+                if (toggleBtn) toggleBtn.style.display = 'none';
                 return;
             }
             
-            container.innerHTML = dates.slice(0, 10).map(date => {
+            // 根据是否展开全部，决定显示数量
+            const displayCount = diaryExpanded ? dates.length : Math.min(10, dates.length);
+            const displayDates = dates.slice(0, displayCount);
+            
+            container.innerHTML = displayDates.map(date => {
                 const content = diaryData[date];
                 const preview = content.substring(0, 50) + (content.length > 50 ? '...' : '');
                 return `
@@ -10871,6 +11458,16 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     </div>
                 `;
             }).join('');
+            
+            // 更新按钮文本和显示状态
+            if (toggleBtn) {
+                if (dates.length > 10) {
+                    toggleBtn.textContent = diaryExpanded ? '收起全部' : '查看全部';
+                    toggleBtn.style.display = 'inline-block';
+                } else {
+                    toggleBtn.style.display = 'none';
+                }
+            }
         }
 
         // ============ 增强待办清单 ============
@@ -11070,7 +11667,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             const today = getTodayString();
             const peeCount = excretionData.records[today]?.pee?.count || 0;
             const poopCount = excretionData.records[today]?.poop?.count || 0;
-            document.getElementById('today-toilet-count').textContent = `💛${peeCount} 💩${poopCount}`;
+            document.getElementById('today-toilet-count').textContent = `💧${peeCount} 💩${poopCount}`;
         }
 
     
@@ -11707,6 +12304,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 water: 0,
                 lateNightWarnings: parseInt(localStorage.getItem('lateNightWarningsCount') || '0'),
                 projects: projectData && projectData.projects ? projectData.projects.length : 0,
+                completedProjects: projectData && projectData.completedProjects ? projectData.completedProjects.length : 0,
+                workSessions: 0,
                 maxPressure: 0,
                 dayCount: Object.keys(workData.records || {}).filter(d => {
                     const sessions = (workData.records[d] || {}).workSessions || [];
@@ -11720,14 +12319,23 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             if(researchData && researchData.records) Object.values(researchData.records).forEach(d => stats.researchItems += d.length);
             if(intakeData && intakeData.coffee && intakeData.coffee.records) Object.values(intakeData.coffee.records).forEach(d => stats.caffeine += (d.caffeine || 0));
             
+            // 计算总工作时数和打卡次数
             Object.values(workData.records || {}).forEach(dayData => {
                 (dayData.workSessions || []).forEach(s => {
                     stats.workHours += (s.duration || 0) / 60;
+                    stats.workSessions += 1;
                 });
             });
 
-            // 积分计算
-            const exp = (stats.completedTodos * 5) + (stats.pomodoros * 10) + (stats.researchItems * 20) + (stats.projects * 50);
+            // 积分计算（与checkAchievements保持一致）
+            // 待办：8 exp | 打卡：2 exp | 番茄：10 exp | 科研：20 exp | 项目新建：30 exp | 项目完成：60 exp | 工作时间：10 exp/小时
+            const exp = (stats.completedTodos * 8) + 
+                        (stats.workSessions * 2) + 
+                        (stats.pomodoros * 10) + 
+                        (stats.researchItems * 20) + 
+                        (stats.projects * 30) + 
+                        (stats.completedProjects * 60) +
+                        Math.floor(stats.workHours * 10);
 
             // 查找当前等级
             let currentLevelIdx = 0;
@@ -12205,8 +12813,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 <div>
                     <h3 class="font-bold text-white text-lg mb-3">项目信息</h3>
                     <ul class="space-y-2 text-sm text-gray-400">
-                        <li>版本: <span class="text-white font-mono">v1.0.0</span></li>
-                        <li>发布: <span class="text-white">2026.04.10</span></li>
+                        <li>版本: <span class="text-white font-mono">v2.0.1</span></li>
+                        <li>发布: <span class="text-white">2026.04.13</span></li>
                         <li>协议: <span class="text-white">MIT License</span></li>
                     </ul>
                 </div>
