@@ -2412,7 +2412,7 @@
             <section id="project-section" class="bg-white rounded-lg shadow-lg p-6 mb-6 hidden">
                     <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center justify-between">
                         <div><i class="fa fa-tasks mr-2 text-primary"></i>科研项目进度</div>
-                        <button onclick="document.getElementById('project-modal').classList.remove('hidden')" class="px-4 py-2 bg-primary hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">
+                        <button onclick="showProjectModal()" class="px-4 py-2 bg-primary hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">
                             <i class="fa fa-plus mr-1"></i>新建项目
                         </button>
                     </h2>
@@ -3365,7 +3365,7 @@
             </div>
             
             <div class="flex gap-3 mt-6 justify-end">
-                <button onclick="document.getElementById('project-modal').classList.add('hidden')" 
+                <button onclick="hideProjectModal()" 
                     class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-sm font-medium transition-colors">
                     取消
                 </button>
@@ -8137,6 +8137,20 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             if (completedSection && (projectData.completedProjects && projectData.completedProjects.length > 0)) {
                 completedSection.classList.remove('hidden');
             }
+            
+            // 【修复】为项目模态框添加点击外部自动关闭功能
+            const projectModal = document.getElementById('project-modal');
+            if (projectModal) {
+                projectModal.addEventListener('click', function(e) {
+                    // 只有当点击的是模态框本身（而不是内部内容）时才关闭
+                    if (e.target === this) {
+                        hideProjectModal();
+                    }
+                });
+                console.log('✅ 项目模态框事件监听器已初始化');
+            } else {
+                console.warn('⚠️ 未找到 project-modal，无法初始化事件监听器');
+            }
         }
 
         // 【新增】项目管理数据结构版本号（用于迁移旧数据）
@@ -8259,6 +8273,30 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             }
         }
 
+        // 【修复】项目模态框控制函数
+        function showProjectModal() {
+            const modal = document.getElementById('project-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                console.log('✅ 项目模态框已显示');
+                // 尝试自动聚焦到项目名称输入框
+                setTimeout(() => {
+                    const nameInput = document.getElementById('project-name');
+                    if (nameInput) nameInput.focus();
+                }, 100);
+            } else {
+                console.error('❌ 未找到 project-modal 元素');
+            }
+        }
+
+        function hideProjectModal() {
+            const modal = document.getElementById('project-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                console.log('✅ 项目模态框已隐藏');
+            }
+        }
+
         function addProject() {
             const name = document.getElementById('project-name').value.trim();
             const total = parseInt(document.getElementById('project-total').value);
@@ -8285,7 +8323,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             document.getElementById('project-total').value = '';
             document.getElementById('project-deadline').value = '';
             
-            document.getElementById('project-modal').classList.add('hidden');
+            hideProjectModal();
             
             saveData();
             renderProjectDisplay();
