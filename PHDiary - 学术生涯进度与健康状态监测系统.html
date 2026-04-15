@@ -773,6 +773,177 @@
     <!-- 前端本地验证库（推荐方案：无需服务器） -->
     <script src="License/local/local-license-verify.js"></script>
     <script>
+        // ==================== 前端本地激活码验证系统（内联定义，确保可用）====================
+        /**
+         * 前端本地验证配置
+         */
+        const LOCAL_LICENSE_CONFIG = {
+            DEFAULT_SALT: 'PHDiary_Academic_Diary_2024_Secure_Authorization_Key',
+            DEFAULT_CODE_LENGTH: 8
+        };
+
+        /**
+         * 使用 CryptoJS 计算 SHA256
+         */
+        function computeSHA256(input) {
+            try {
+                if (typeof CryptoJS !== 'undefined') {
+                    return CryptoJS.SHA256(input).toString().toUpperCase();
+                }
+                throw new Error('SHA256计算失败：未找到CryptoJS库');
+            } catch (error) {
+                console.error('计算SHA256时出错:', error);
+                throw error;
+            }
+        }
+
+        /**
+         * 验证激活码是否有效
+         */
+        function verifyActivationCodeLocal(username, inputCode, options = {}) {
+            try {
+                const salt = options.salt || LOCAL_LICENSE_CONFIG.DEFAULT_SALT;
+                const codeLength = options.codeLength || LOCAL_LICENSE_CONFIG.DEFAULT_CODE_LENGTH;
+                
+                if (!username || typeof username !== 'string') {
+                    console.error('❌ 无效的用户名');
+                    return false;
+                }
+                
+                if (!inputCode || typeof inputCode !== 'string') {
+                    console.error('❌ 无效的激活码');
+                    return false;
+                }
+                
+                const data = username + salt;
+                const hash = computeSHA256(data);
+                const expectedCode = hash.substring(0, codeLength);
+                const isValid = inputCode.toUpperCase() === expectedCode.toUpperCase();
+                
+                if (isValid) {
+                    console.log('✅ 激活码验证成功！');
+                    console.log('   用户名：' + username);
+                    console.log('   预期激活码：' + expectedCode);
+                    return true;
+                } else {
+                    console.warn('❌ 激活码验证失败！');
+                    console.warn('   用户名：' + username);
+                    console.warn('   输入的激活码：' + inputCode.toUpperCase());
+                    console.warn('   预期的激活码：' + expectedCode);
+                    return false;
+                }
+            } catch (error) {
+                console.error('验证激活码时出错:', error);
+                return false;
+            }
+        }
+
+        /**
+         * 获取激活码诊断信息（用于调试）
+         */
+        function diagnoseActivationCode(username, activationCode) {
+            try {
+                const salt = LOCAL_LICENSE_CONFIG.DEFAULT_SALT;
+                const codeLength = LOCAL_LICENSE_CONFIG.DEFAULT_CODE_LENGTH;
+                
+                const data = username + salt;
+                const hash = computeSHA256(data);
+                const expectedCode = hash.substring(0, codeLength);
+                
+                return {
+                    username: username,
+                    inputCode: activationCode ? activationCode.toUpperCase() : 'N/A',
+                    expectedCode: expectedCode,
+                    isValid: activationCode && activationCode.toUpperCase() === expectedCode,
+                    debug: {
+                        salt: salt,
+                        codeLength: codeLength,
+                        data: data,
+                        hash: hash,
+                        method: 'SHA256(username + salt).substring(0, ' + codeLength + ')'
+                    }
+                };
+            } catch (error) {
+                console.error('诊断激活码时出错:', error);
+                return { error: error.message };
+            }
+        }
+
+        /**
+         * 激活许可证（前端本地版本）
+         */
+        function activateLicenseLocal(username, activationCode, validDays = 365, options = {}) {
+            try {
+                // 1. 验证激活码
+                if (!verifyActivationCodeLocal(username, activationCode, options)) {
+                    const diagnostic = diagnoseActivationCode(username, activationCode);
+                    const debugMsg = `\n\n[诊断信息]\n用户名: ${diagnostic.username}\n输入的激活码: ${diagnostic.inputCode}\n正确的激活码: ${diagnostic.expectedCode}`;
+                    
+                    return {
+                        success: false,
+                        message: '❌ 激活码无效！\n\n请检查：\n1. 用户名是否正确（包括大小写）\n2. 激活码是否复制完整\n3. 是否混淆了字母 0/O、1/l' + debugMsg
+                    };
+                }
+                
+                // 2. 检查是否已激活过
+                const currentActivation = localStorage.getItem('phd_license_local_activated');
+                const currentUsername = localStorage.getItem('phd_license_local_username');
+                
+                if (currentActivation === 'true') {
+                    if (currentUsername === username) {
+                        return {
+                            success: false,
+                            message: '⚠️ 此用户名已在本设备激活过！如需续期，请联系开发者'
+                        };
+                    } else {
+                        return {
+                            success: false,
+                            message: '❌ 本设备已被其他用户激活过。如需切换用户，请清除浏览器本地存储'
+                        };
+                    }
+                }
+                
+                // 3. 计算过期日期
+                const expiryDate = new Date();
+                expiryDate.setDate(expiryDate.getDate() + validDays);
+                const expiryTimestamp = Math.floor(expiryDate.getTime() / 1000);
+                
+                // 4. 保存激活信息到 localStorage
+                localStorage.setItem('phd_license_activated', 'true');
+                localStorage.setItem('phd_license_expiry', expiryTimestamp.toString());
+                localStorage.setItem('phd_license_local_activated', 'true');
+                localStorage.setItem('phd_license_local_username', username);
+                localStorage.setItem('phd_license_activation_time', new Date().toISOString());
+                
+                // 5. 清除演示版标记
+                localStorage.removeItem('phd_is_demo_mode');
+                localStorage.removeItem('phd_demo_used_once');
+                
+                console.log('✅ 许可证激活成功！');
+                console.log('   用户名：' + username);
+                if (validDays >= 36500) {
+                    console.log('   有效期：♾️ 永久');
+                } else {
+                    console.log('   过期日期：' + expiryDate.toLocaleDateString('zh-CN'));
+                    console.log('   有效期：' + validDays + '天');
+                }
+                
+                return {
+                    success: true,
+                    message: validDays >= 36500 ? '✅ 激活成功！许可证永久有效 ♾️' : '✅ 激活成功！许可证已保存到本设备',
+                    username: username,
+                    expiryDate: validDays >= 36500 ? '永久' : expiryDate.toISOString().split('T')[0],
+                    validDays: validDays
+                };
+            } catch (error) {
+                console.error('激活许可证时出错:', error);
+                return {
+                    success: false,
+                    message: '❌ 激活失败：' + error.message
+                };
+            }
+        }
+
         // ==================== 许可证服务器配置（方案A：JSON版本） ====================
         // 本地开发使用 localhost:3000，生产环境改为实际服务器地址
         const LICENSE_SERVER_URL = 'http://localhost:3000';
