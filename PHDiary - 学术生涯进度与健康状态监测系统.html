@@ -769,178 +769,148 @@
     
     <!-- 许可证验证系统 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
-    <script src="License/license-utils.js"></script>
-    <!-- 前端本地验证库（推荐方案：无需服务器） -->
-    <script src="License/local/local-license-verify.js"></script>
     <script>
-        // ==================== 前端本地激活码验证系统（内联定义，确保可用）====================
-        /**
-         * 前端本地验证配置
-         */
+        // ==================== 内联许可证工具库（无需外部文件）====================
+        const LICENSE_SECRET = 'PHDiary-2026-Professional-License';
+        
+        function generateLicenseKey(userId, daysValid) {
+            try {
+                const now = new Date();
+                const expiryDateObj = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysValid));
+                const expiryTimestamp = Math.floor(expiryDateObj.getTime() / 1000);
+                const dataToHash = userId + '|' + expiryTimestamp;
+                const hash = CryptoJS.SHA256(dataToHash + LICENSE_SECRET).toString().toUpperCase();
+                const licenseKey = hash.substring(0, 4) + '-' + hash.substring(4, 8) + '-' + hash.substring(8, 12) + '-' + hash.substring(12, 16) + '-' + hash.substring(16, 20);
+                return { licenseKey: licenseKey, expiryTimestamp: expiryTimestamp, expiryDate: expiryDateObj.toISOString().split('T')[0], dataToHash: dataToHash, hash: hash };
+            } catch(error) {
+                console.error('License generation error:', error);
+                return null;
+            }
+        }
+        
+        function validateLicenseKey(licenseKey, userId = 'user') {
+            try {
+                if (!licenseKey || typeof licenseKey !== 'string') return false;
+                const cleanKey = licenseKey.replace(/-/g, '').toUpperCase();
+                if (cleanKey.length < 20) return false;
+                const suppliedHash = cleanKey.substring(0, 20);
+                const permanentDataToHash = userId + '|0';
+                const permanentHash = CryptoJS.SHA256(permanentDataToHash + LICENSE_SECRET).toString().toUpperCase();
+                const permanentHashPrefix = permanentHash.substring(0, 20);
+                if (suppliedHash === permanentHashPrefix) {
+                    console.log('✅ 许可证验证成功！（永久许可证）');
+                    return true;
+                }
+                const commonValidDays = [30, 90, 180, 365, 730, 1095, 36500];
+                for (let validDays of commonValidDays) {
+                    for (let daysSinceGeneration = -30; daysSinceGeneration <= 90; daysSinceGeneration++) {
+                        const now = new Date();
+                        const assumedGenDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysSinceGeneration));
+                        const expiryDateObj = new Date(Date.UTC(assumedGenDate.getUTCFullYear(), assumedGenDate.getUTCMonth(), assumedGenDate.getUTCDate() + validDays));
+                        const testExpiryTimestamp = Math.floor(expiryDateObj.getTime() / 1000);
+                        const dataToHash = userId + '|' + testExpiryTimestamp;
+                        const expectedHash = CryptoJS.SHA256(dataToHash + LICENSE_SECRET).toString().toUpperCase();
+                        const expectedHashPrefix = expectedHash.substring(0, 20);
+                        if (suppliedHash === expectedHashPrefix) {
+                            console.log('✅ 许可证验证成功！');
+                            return true;
+                        }
+                    }
+                }
+                console.log('❌ 许可证验证失败');
+                return false;
+            } catch(e) {
+                console.error('License validation error:', e);
+                return false;
+            }
+        }
+
+        // ==================== 内联前端本地激活码验证系统（无需外部文件）====================
         const LOCAL_LICENSE_CONFIG = {
             DEFAULT_SALT: 'PHDiary_Academic_Diary_2024_Secure_Authorization_Key',
             DEFAULT_CODE_LENGTH: 8
         };
 
-        /**
-         * 使用 CryptoJS 计算 SHA256
-         */
-        function computeSHA256(input) {
-            try {
-                if (typeof CryptoJS !== 'undefined') {
-                    return CryptoJS.SHA256(input).toString().toUpperCase();
-                }
-                throw new Error('SHA256计算失败：未找到CryptoJS库');
-            } catch (error) {
-                console.error('计算SHA256时出错:', error);
-                throw error;
-            }
-        }
-
-        /**
-         * 验证激活码是否有效
-         */
-        function verifyActivationCodeLocal(username, inputCode, options = {}) {
-            try {
-                const salt = options.salt || LOCAL_LICENSE_CONFIG.DEFAULT_SALT;
-                const codeLength = options.codeLength || LOCAL_LICENSE_CONFIG.DEFAULT_CODE_LENGTH;
-                
-                if (!username || typeof username !== 'string') {
-                    console.error('❌ 无效的用户名');
-                    return false;
-                }
-                
-                if (!inputCode || typeof inputCode !== 'string') {
-                    console.error('❌ 无效的激活码');
-                    return false;
-                }
-                
-                const data = username + salt;
-                const hash = computeSHA256(data);
-                const expectedCode = hash.substring(0, codeLength);
-                const isValid = inputCode.toUpperCase() === expectedCode.toUpperCase();
-                
-                if (isValid) {
-                    console.log('✅ 激活码验证成功！');
-                    console.log('   用户名：' + username);
-                    console.log('   预期激活码：' + expectedCode);
-                    return true;
-                } else {
-                    console.warn('❌ 激活码验证失败！');
-                    console.warn('   用户名：' + username);
-                    console.warn('   输入的激活码：' + inputCode.toUpperCase());
-                    console.warn('   预期的激活码：' + expectedCode);
-                    return false;
-                }
-            } catch (error) {
-                console.error('验证激活码时出错:', error);
-                return false;
-            }
-        }
-
-        /**
-         * 获取激活码诊断信息（用于调试）
-         */
-        function diagnoseActivationCode(username, activationCode) {
-            try {
-                const salt = LOCAL_LICENSE_CONFIG.DEFAULT_SALT;
-                const codeLength = LOCAL_LICENSE_CONFIG.DEFAULT_CODE_LENGTH;
-                
-                const data = username + salt;
-                const hash = computeSHA256(data);
-                const expectedCode = hash.substring(0, codeLength);
-                
-                return {
-                    username: username,
-                    inputCode: activationCode ? activationCode.toUpperCase() : 'N/A',
-                    expectedCode: expectedCode,
-                    isValid: activationCode && activationCode.toUpperCase() === expectedCode,
-                    debug: {
-                        salt: salt,
-                        codeLength: codeLength,
-                        data: data,
-                        hash: hash,
-                        method: 'SHA256(username + salt).substring(0, ' + codeLength + ')'
+        // ==================== 确保许可证激活相关函数可用（容错方案）====================
+        if (typeof activateLicenseLocal === 'undefined') {
+            function activateLicenseLocal(username, activationCode, validDays = 365, options = {}) {
+                try {
+                    // 使用默认的盐值和长度
+                    const saltVal = options.salt || 'PHDiary_Academic_Diary_2024_Secure_Authorization_Key';
+                    const codeLength = options.codeLength || 8;
+                    
+                    // 简单验证：计算预期的激活码
+                    if (!username || !activationCode) {
+                        return {
+                            success: false,
+                            message: '❌ 用户名或激活码不能为空'
+                        };
                     }
-                };
-            } catch (error) {
-                console.error('诊断激活码时出错:', error);
-                return { error: error.message };
-            }
-        }
-
-        /**
-         * 激活许可证（前端本地版本）
-         */
-        function activateLicenseLocal(username, activationCode, validDays = 365, options = {}) {
-            try {
-                // 1. 验证激活码
-                if (!verifyActivationCodeLocal(username, activationCode, options)) {
-                    const diagnostic = diagnoseActivationCode(username, activationCode);
-                    const debugMsg = `\n\n[诊断信息]\n用户名: ${diagnostic.username}\n输入的激活码: ${diagnostic.inputCode}\n正确的激活码: ${diagnostic.expectedCode}`;
+                    
+                    // 计算预期的激活码
+                    const data = username + saltVal;
+                    let expectedCode;
+                    
+                    try {
+                        if (typeof CryptoJS !== 'undefined') {
+                            const hash = CryptoJS.SHA256(data).toString().toUpperCase();
+                            expectedCode = hash.substring(0, codeLength);
+                        } else {
+                            return {
+                                success: false,
+                                message: '❌ 加密库未加载，请刷新页面重试'
+                            };
+                        }
+                    } catch (e) {
+                        return {
+                            success: false,
+                            message: '❌ 激活码验证失败：' + e.message
+                        };
+                    }
+                    
+                    // 验证激活码
+                    if (activationCode.toUpperCase() !== expectedCode) {
+                        return {
+                            success: false,
+                            message: '❌ 激活码无效！\n用户名：' + username + '\n输入的激活码：' + activationCode.toUpperCase() + '\n正确的激活码：' + expectedCode
+                        };
+                    }
+                    
+                    // 检查是否已激活过
+                    const currentActivation = localStorage.getItem('phd_license_local_activated');
+                    if (currentActivation === 'true') {
+                        return {
+                            success: false,
+                            message: '⚠️ 此设备已被激活过，如需重新激活请清除浏览器本地存储'
+                        };
+                    }
+                    
+                    // 计算过期日期
+                    const expiryDate = new Date();
+                    expiryDate.setDate(expiryDate.getDate() + validDays);
+                    const expiryTimestamp = Math.floor(expiryDate.getTime() / 1000);
+                    
+                    // 保存激活信息
+                    localStorage.setItem('phd_license_activated', 'true');
+                    localStorage.setItem('phd_license_expiry', expiryTimestamp.toString());
+                    localStorage.setItem('phd_license_local_activated', 'true');
+                    localStorage.setItem('phd_license_local_username', username);
+                    localStorage.removeItem('phd_is_demo_mode');
+                    localStorage.removeItem('phd_demo_used_once');
                     
                     return {
+                        success: true,
+                        message: validDays >= 36500 ? '✅ 激活成功！许可证永久有效 ♾️' : '✅ 激活成功！许可证已保存到本设备',
+                        username: username,
+                        expiryDate: validDays >= 36500 ? '永久' : expiryDate.toISOString().split('T')[0],
+                        validDays: validDays
+                    };
+                } catch (error) {
+                    return {
                         success: false,
-                        message: '❌ 激活码无效！\n\n请检查：\n1. 用户名是否正确（包括大小写）\n2. 激活码是否复制完整\n3. 是否混淆了字母 0/O、1/l' + debugMsg
+                        message: '❌ 激活失败：' + error.message
                     };
                 }
-                
-                // 2. 检查是否已激活过
-                const currentActivation = localStorage.getItem('phd_license_local_activated');
-                const currentUsername = localStorage.getItem('phd_license_local_username');
-                
-                if (currentActivation === 'true') {
-                    if (currentUsername === username) {
-                        return {
-                            success: false,
-                            message: '⚠️ 此用户名已在本设备激活过！如需续期，请联系开发者'
-                        };
-                    } else {
-                        return {
-                            success: false,
-                            message: '❌ 本设备已被其他用户激活过。如需切换用户，请清除浏览器本地存储'
-                        };
-                    }
-                }
-                
-                // 3. 计算过期日期
-                const expiryDate = new Date();
-                expiryDate.setDate(expiryDate.getDate() + validDays);
-                const expiryTimestamp = Math.floor(expiryDate.getTime() / 1000);
-                
-                // 4. 保存激活信息到 localStorage
-                localStorage.setItem('phd_license_activated', 'true');
-                localStorage.setItem('phd_license_expiry', expiryTimestamp.toString());
-                localStorage.setItem('phd_license_local_activated', 'true');
-                localStorage.setItem('phd_license_local_username', username);
-                localStorage.setItem('phd_license_activation_time', new Date().toISOString());
-                
-                // 5. 清除演示版标记
-                localStorage.removeItem('phd_is_demo_mode');
-                localStorage.removeItem('phd_demo_used_once');
-                
-                console.log('✅ 许可证激活成功！');
-                console.log('   用户名：' + username);
-                if (validDays >= 36500) {
-                    console.log('   有效期：♾️ 永久');
-                } else {
-                    console.log('   过期日期：' + expiryDate.toLocaleDateString('zh-CN'));
-                    console.log('   有效期：' + validDays + '天');
-                }
-                
-                return {
-                    success: true,
-                    message: validDays >= 36500 ? '✅ 激活成功！许可证永久有效 ♾️' : '✅ 激活成功！许可证已保存到本设备',
-                    username: username,
-                    expiryDate: validDays >= 36500 ? '永久' : expiryDate.toISOString().split('T')[0],
-                    validDays: validDays
-                };
-            } catch (error) {
-                console.error('激活许可证时出错:', error);
-                return {
-                    success: false,
-                    message: '❌ 激活失败：' + error.message
-                };
             }
         }
 
@@ -2591,16 +2561,19 @@
                     <div id="project-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <!-- Project cards injected here -->
                     </div>
-                </section>
 
-                <!-- 已完成项目section -->
-                <section id="completed-project-section" class="bg-white rounded-lg shadow-lg p-6 mb-6 hidden">
-                    <h2 class="text-2xl font-bold text-green-700 mb-6 flex items-center">
-                        <i class="fa fa-check-circle mr-2"></i>已完成项目
-                    </h2>
-                    
-                    <div id="completed-project-list" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Completed project cards injected here -->
+                    <!-- 历史项目折叠条 -->
+                    <div class="mt-8 border-t pt-6">
+                        <button id="completed-projects-toggle" onclick="toggleCompletedProjects()" class="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors">
+                            <h3 class="text-lg font-semibold text-gray-800 flex items-center">
+                                <i class="fa fa-history mr-2 text-gray-600"></i>历史项目
+                                <span id="completed-projects-count" class="ml-2 text-sm px-2 py-1 bg-gray-200 text-gray-700 rounded-full">0</span>
+                            </h3>
+                            <i id="completed-projects-chevron" class="fa fa-chevron-down text-gray-600 transition-transform"></i>
+                        </button>
+                        <div id="completed-project-list" class="hidden mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Completed project cards injected here -->
+                        </div>
                     </div>
                 </section>
             <section id="pomodoro-section" class="bg-white rounded-lg shadow-lg p-6 mb-6 hidden">
@@ -3549,6 +3522,46 @@
 
 
     <script>
+        // ==================== 容错定义：确保许可证相关函数可用 ====================
+        // 在第775行的脚本块加载之前，提供容错实现
+        if (typeof checkAndDisplayLicenseStatus === 'undefined') {
+            window.checkAndDisplayLicenseStatus = function() {
+                // 延迟到下一个事件循环，确保所有依赖函数都已加载
+                setTimeout(() => {
+                    if (typeof getLicenseInfo === 'undefined') {
+                        console.warn('⚠️ getLicenseInfo 未定义，许可证检查稍后重试');
+                        return;
+                    }
+                    try {
+                        const licenseInfo = getLicenseInfo();
+                        const infoBtn = document.getElementById('license-info-btn');
+                        if (!infoBtn) return;
+                        
+                        const isTrialVersion = localStorage.getItem('phd_is_demo_mode') === 'true';
+                        
+                        if (licenseInfo && !licenseInfo.isExpired) {
+                            infoBtn.classList.remove('hidden');
+                            if (isTrialVersion) {
+                                infoBtn.textContent = '✓ 试用';
+                                infoBtn.title = '点击查看详情 | 试用版本';
+                            } else {
+                                const formatDaysDisplay = typeof window.formatDaysDisplay === 'function' ? window.formatDaysDisplay : (d) => d >= 36500 ? '永久' : d + '天';
+                                const daysDisplay = formatDaysDisplay(licenseInfo.daysRemaining);
+                                infoBtn.textContent = '✓ 已激活 (' + daysDisplay + ')';
+                                if (licenseInfo.daysRemaining > 36500) {
+                                    infoBtn.title = '点击查看许可证详情 | 永久有效 ♾️';
+                                } else {
+                                    infoBtn.title = '点击查看许可证详情 | 过期日期: ' + licenseInfo.expiryDate;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('检查许可证状态时出错:', e);
+                    }
+                }, 100);
+            };
+        }
+        
         let DEFAULT_THEME_BACKGROUND = ''; // 默认主题背景嵌入资源
         // 全局变量
         let workData = { records: {} }; // 打卡数据
@@ -4050,7 +4063,10 @@ let projectData = { projects: [] }; // 项目进度数据
             }, 500);
             
             // 启动每日数据重置检查（每分钟检查一次）
+            // 【每天0:00自动换为新一天】设置每分钟检查一次，确保及时刷新
             setInterval(checkAndResetDailyData, 60000);
+            // 【补充】在初始时也执行一次检查
+            checkAndResetDailyData();
         });
 
 
@@ -4454,7 +4470,10 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 pomodoroData,
                 profileData,
                 coffeeData,
-                todoData
+                todoData,
+                unlockedBadges: JSON.parse(localStorage.getItem('unlockedBadges') || '[]'),
+                equippedBadge: localStorage.getItem('equippedBadge') || '',
+                customAchievements: JSON.parse(localStorage.getItem('customAchievements') || '[]')
             };
             return backup;
         }
@@ -4998,6 +5017,16 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     localStorage.setItem('projectData', JSON.stringify(projectData));
                     localStorage.setItem('moodData', JSON.stringify(parsed.moodData || {}));
                     localStorage.setItem('diaryData', JSON.stringify(diaryData));
+                    // 【修复】恢复徽章数据
+                    if (parsed.unlockedBadges && Array.isArray(parsed.unlockedBadges)) {
+                        localStorage.setItem('unlockedBadges', JSON.stringify(parsed.unlockedBadges));
+                    }
+                    if (parsed.equippedBadge) {
+                        localStorage.setItem('equippedBadge', parsed.equippedBadge);
+                    }
+                    if (parsed.customAchievements && Array.isArray(parsed.customAchievements)) {
+                        localStorage.setItem('customAchievements', JSON.stringify(parsed.customAchievements));
+                    }
                     lastExportFileName = file.name;
                     saveData();
                     initData();
@@ -5081,6 +5110,9 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 }
                 if (typeof updateHealthStats === 'function') {
                     updateHealthStats('week');  // 🔧 添加：更新健康卡片数据
+                }
+                if (typeof updateProjectStats === 'function') {
+                    updateProjectStats('week');  // 【修复】更新项目进度条
                 }
             }
             
@@ -5737,7 +5769,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
         // 更新研究和项目统计
         function updateResearchAndProjectStats() {
             updateResearchStats();
-            updateProjectStats();
+            const currentPeriod = document.querySelector('.stats-period-btn.bg-blue-600')?.getAttribute('data-period') || 'week';
+            updateProjectStats(currentPeriod);
         }
         
         // 更新研究进度统计
@@ -5797,7 +5830,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
         }
         
         // 更新项目进度统计
-        function updateProjectStats() {
+        function updateProjectStats(period = 'week') {
             const projectProgressEl = document.getElementById('project-progress-list');
             
             if (!projectProgressEl) return;
@@ -5807,21 +5840,102 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 return;
             }
             
-            // 计算每个项目的进度百分比
-            const html = projectData.projects.slice(0, 8).map(project => {
-                // 项目进度百分比 = 已用时间 / 目标时间 * 100
-                const timeSpent = project.timeSpent || 0;  // 分钟
-                const totalTime = (project.total || 1) * 60;  // 转换为分钟
-                const progress = Math.min(100, Math.round((timeSpent / totalTime) * 100));
+            // 【修复】只显示进行中的项目（过滤已完成的项目）
+            const ongoingProjects = projectData.projects.filter(p => {
+                if (!p.subtasks) return false;
+                const allCompleted = p.subtasks.every(s => s.completed || s.actualMinutes >= (s.plannedHours * 60));
+                return !allCompleted;  // 只显示未完成的项目
+            });
+
+            // 计算时间范围（用于过滤项目时间）
+            const today = new Date();
+            let startDate, endDate = new Date();
+            endDate = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate() + 1);
+            
+            if (period === 'week') {
+                // 本周：周一到周日
+                const dayOfWeek = today.getDay();
+                const daysToMonday = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+                startDate = new Date(today);
+                startDate.setDate(today.getDate() - daysToMonday);
+            } else if (period === 'month') {
+                // 本月：1号到月末
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            } else {
+                // 本年：1月1号到12月31号
+                startDate = new Date(today.getFullYear(), 0, 1);
+                endDate = new Date(today.getFullYear() + 1, 0, 1);
+            }
+            
+            // 标准化开始和结束日期
+            startDate = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+            
+            // 过滤在时间范围内有时间记录的项目
+            const filteredProjects = ongoingProjects.filter(project => {
+                if (!project.subtasks) return false;
                 
+                // 检查子任务是否在时间范围内有记录
+                for (let subtask of project.subtasks) {
+                    if (!subtask.timeLog) continue;
+                    
+                    for (let dateStr in subtask.timeLog) {
+                        const logDate = new Date(dateStr);
+                        if (logDate >= startDate && logDate < endDate) {
+                            return true;  // 该项目在时间范围内有记录
+                        }
+                    }
+                }
+                
+                return false;  // 该项目在此时间范围内无记录
+            });
+            
+            // 如果没有过滤出项目，显示所有未完成的项目
+            const projectsToDisplay = filteredProjects.length > 0 ? filteredProjects : ongoingProjects;
+            
+            if (projectsToDisplay.length === 0) {
+                projectProgressEl.innerHTML = '<div class="text-gray-500 text-sm text-center py-4">暂无项目数据</div>';
+                return;
+            }
+            
+            // 计算每个项目的进度百分比（使用子任务数据）
+            const html = projectsToDisplay.map(project => {
+                // 【修复】使用子任务数据计算实时进度
+                if (!project.subtasks || project.subtasks.length === 0) {
+                    const progress = 0;
+                    const timeStr = '0m';
+                    return `
+                        <div class="mb-2 p-2 bg-white rounded border border-gray-100">
+                            <div class="flex justify-between items-center text-xs mb-1">
+                                <span class="font-medium text-gray-700 truncate flex-1 mr-2">${project.name || '未命名'}</span>
+                                <span class="text-gray-600 font-semibold whitespace-nowrap">${progress}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded h-1.5">
+                                <div class="bg-gray-400 h-1.5 rounded" style="width: ${progress}%"></div>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-0.5">${timeStr} / -</div>
+                        </div>
+                    `;
+                }
+                
+                // 计算项目总时间（从子任务求和）
+                const totalPlannedMinutes = project.subtasks.reduce((sum, s) => sum + (s.plannedHours * 60), 0);
+                const totalActualMinutes = project.subtasks.reduce((sum, s) => sum + (s.actualMinutes || 0), 0);
+                
+                // 计算进度百分比
+                const referenceHours = totalPlannedMinutes > 0 ? (totalPlannedMinutes / 60) : (project.plannedTotalHours || 0);
+                const progress = referenceHours > 0 ? Math.min(100, Math.round((totalActualMinutes / (referenceHours * 60)) * 100)) : 0;
+                
+                // 确定进度条颜色
                 let color = 'bg-red-500';
                 if (progress >= 100) color = 'bg-green-500';
                 else if (progress >= 70) color = 'bg-yellow-500';
                 else if (progress >= 40) color = 'bg-blue-500';
                 
-                const hours = Math.floor(timeSpent / 60);
-                const mins = timeSpent % 60;
+                // 格式化时间显示
+                const hours = Math.floor(totalActualMinutes / 60);
+                const mins = totalActualMinutes % 60;
                 const timeStr = hours > 0 ? `${hours}h${mins}m` : `${mins}m`;
+                const totalHours = (totalPlannedMinutes / 60).toFixed(1);
                 
                 return `
                     <div class="mb-2 p-2 bg-white rounded border border-gray-100">
@@ -5832,7 +5946,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                         <div class="w-full bg-gray-200 rounded h-1.5">
                             <div class="${color} h-1.5 rounded" style="width: ${progress}%"></div>
                         </div>
-                        <div class="text-xs text-gray-500 mt-0.5">${timeStr} / ${project.total}h</div>
+                        <div class="text-xs text-gray-500 mt-0.5">${timeStr} / ${totalHours}h</div>
                     </div>
                 `;
             }).join('');
@@ -6724,6 +6838,19 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             renderTodoList();
         }
 
+        function editTodo(id) {
+            const todo = todoData.pending.find(t => t.id === id);
+            if (!todo) return;
+
+            const newText = prompt('编辑待办事项', todo.text);
+            if (newText !== null && newText.trim() !== '') {
+                todo.text = newText.trim();
+                localStorage.setItem('todoData', JSON.stringify(todoData));
+                renderTodoList();
+                showToast('✏️ 待办事项已更新');
+            }
+        }
+
         function renderTodoList() {
             const pendingContainer = document.getElementById('todo-pending');
             const completedContainer = document.getElementById('todo-completed');
@@ -6741,8 +6868,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     <div class="flex items-center justify-between gap-3 p-3 bg-white rounded-lg shadow-sm">
                         <div class="flex items-center gap-3 min-w-0 flex-1">
                             <button onclick="completeTodo(${todo.id})" class="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 transition-all flex-shrink-0"></button>
-                            <div class="min-w-0 flex-1">
-                                <div class="text-gray-800 break-all">${todo.text}</div>
+                            <div class="min-w-0 flex-1 cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors" onclick="editTodo(${todo.id})" title="点击编辑">
+                                <div class="text-gray-800 break-all hover:text-blue-600">${todo.text}</div>
                                 <div class="text-xs text-gray-400 mt-1">
                                     添加于 ${todo.createdAt || '-'}
                                     ${hasTimeLog ? ` | 已投入 <span class="font-semibold text-blue-600">${timeSpentHours}h</span>` : ''}
@@ -6751,6 +6878,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                         </div>
                         <div class="flex items-center gap-2 flex-shrink-0">
                             ${hasTimeLog ? `<button onclick="showTodoTimeDistribution(${todo.id})" class="text-blue-500 hover:text-blue-700 text-sm" title="查看时间分布"><i class="fa fa-bar-chart"></i></button>` : ''}
+                            <button onclick="editTodo(${todo.id})" class="text-gray-400 hover:text-blue-500 text-sm" title="编辑"><i class="fa fa-edit"></i></button>
                             <button onclick="deleteTodo(${todo.id}, 'pending')" class="text-gray-400 hover:text-red-500 text-sm">×</button>
                         </div>
                     </div>
@@ -6801,6 +6929,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
         window.completeTodo = completeTodo;
         window.uncompleteTodo = uncompleteTodo;
         window.deleteTodo = deleteTodo;
+        window.editTodo = editTodo;
         window.deleteIntakeRecord = deleteIntakeRecord;
 
         // 心情数据结构
@@ -7186,8 +7315,19 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             // 允许用户心情好但压力大，或心情不好但压力小等各种组合
 
             if (!currentMoodStart) {
-                currentMoodStart = { mood: mood, pressure: pressure, startTime: now };
+                // 【更新】只记录时间点，而不是时间段
+                currentMoodStart = { mood: mood, pressure: pressure, time: now };
                 setMoodDisplay(mood, '记录中...');
+                // 【新增】立即保存这个时间点的记录
+                const record = {
+                    mood: mood,
+                    pressure: pressure,
+                    startTime: now,
+                    reason: ''
+                };
+                moodData.records.push(record);
+                saveMoodData();
+                renderMoodTimeline();
                 // 心情选择后，可选：弹出输入框（如需要，可取消注释）
                 // showMoodReasonInput(mood);
             } else {
@@ -7197,15 +7337,15 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     return;
                 }
                 
-                const record = {
-                    mood: currentMoodStart.mood,
-                    pressure: currentMoodStart.pressure || 50,
-                    startTime: currentMoodStart.startTime,
-                    endTime: now,
-                    reason: currentMoodStart.reason // 保存原因备注
+                // 【更新】新的心情记录
+                currentMoodStart = { mood: mood, pressure: pressure, time: now };
+                const newRecord = {
+                    mood: mood,
+                    pressure: pressure,
+                    startTime: now,
+                    reason: ''
                 };
-                moodData.records.push(record);
-                currentMoodStart = { mood: mood, pressure: pressure, startTime: now };
+                moodData.records.push(newRecord);
 
                 saveMoodData();
                 setMoodDisplay(mood, '记录中...');
@@ -7276,13 +7416,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             let html = '';
             moodData.records.forEach((record, i) => {
                 const bgColor = moodColors[record.mood] || 'bg-gray-100';
-                html += `<div class="inline-flex flex-col items-center justify-center px-2 py-1 rounded ${bgColor} cursor-default transition-all hover:shadow-sm text-xs" title="${record.startTime}-${record.endTime} 压力:${record.pressure||'?'}">${moodEmojis[record.mood]}<span class="text-xs text-gray-600 mt-0.5">${record.startTime}</span></div>`;
+                html += `<div class="inline-flex flex-col items-center justify-center px-2 py-1 rounded ${bgColor} cursor-default transition-all hover:shadow-sm text-xs" title="${record.startTime} | 压力:${record.pressure||'?'}">${moodEmojis[record.mood]}<span class="text-xs text-gray-600 mt-0.5">${record.startTime}</span></div>`;
             });
-
-            if (currentMoodStart) {
-                const bgColor = moodColors[currentMoodStart.mood] || 'bg-gray-100';
-                html += `<div class="inline-flex flex-col items-center justify-center px-2 py-1 rounded ${bgColor} animate-pulse transition-all text-xs" title="进行中 压力:${currentMoodStart.pressure||'?'}">${moodEmojis[currentMoodStart.mood]}<span class="text-xs text-gray-600 mt-0.5">进行中</span></div>`;
-            }
 
             container.innerHTML = html;
         }
@@ -7969,7 +8104,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             
             const tasks = [];
             
-            // 从待办任务中获取未完成的项목
+            // 从待办任务中获取未完成的项目
             if (todoData && todoData.pending) {
                 todoData.pending.forEach(todo => {
                     tasks.push({
@@ -7980,14 +8115,19 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 });
             }
             
-            // 从项目进度中获取任务
+            // 【修改】从项目进度中只获取进行中的项目（排除已完成的）
             if (projectData && projectData.projects) {
                 projectData.projects.forEach(project => {
-                    tasks.push({
-                        name: `📊 ${project.name}`,
-                        type: 'project',
-                        id: project.name
-                    });
+                    // 【新增】过滤已完成的项目
+                    if (!project.subtasks) return true;
+                    const allCompleted = project.subtasks.every(s => s.completed || s.actualMinutes >= (s.plannedHours * 60));
+                    if (!allCompleted) {  // 只添加未完成的项目
+                        tasks.push({
+                            name: `📊 ${project.name}`,
+                            type: 'project',
+                            id: project.name
+                        });
+                    }
                 });
             }
             
@@ -8292,21 +8432,45 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             if (statsElement) statsElement.textContent = count;
         }
 
+        function toggleCompletedProjects() {
+            const list = document.getElementById('completed-project-list');
+            const chevron = document.getElementById('completed-projects-chevron');
+            
+            if (list.classList.contains('hidden')) {
+                list.classList.remove('hidden');
+                chevron.style.transform = 'rotate(180deg)';
+            } else {
+                list.classList.add('hidden');
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function updateCompletedProjectsCount() {
+            const count = (projectData.completedProjects && projectData.completedProjects.length) || 0;
+            const countElement = document.getElementById('completed-projects-count');
+            if (countElement) {
+                countElement.textContent = count;
+            }
+        }
+
         function initProject() {
             // 【新增】在该项目初始化时进行数据迁移
             migrateProjectData();
             
             renderProjectDisplay();
             renderCompletedProjects();
+            updateCompletedProjectsCount();
             
-            // 显示project-section和completed-project-section如果有项目
+            // 显示project-section如果有项目
             const projectSection = document.getElementById('project-section');
-            const completedSection = document.getElementById('completed-project-section');
-            if (projectSection && (projectData.projects.length > 0)) {
+            if (projectSection && (projectData.projects.length > 0 || (projectData.completedProjects && projectData.completedProjects.length > 0))) {
                 projectSection.classList.remove('hidden');
             }
-            if (completedSection && (projectData.completedProjects && projectData.completedProjects.length > 0)) {
-                completedSection.classList.remove('hidden');
+            
+            // 折叠条总是显示（如果project-section显示）
+            const completedProjectsToggle = document.getElementById('completed-projects-toggle');
+            if (completedProjectsToggle && projectSection && !projectSection.classList.contains('hidden')) {
+                completedProjectsToggle.classList.remove('hidden');
             }
             
             // 【修复】为项目模态框添加点击外部自动关闭功能
@@ -8609,8 +8773,12 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 subtask.completed = true;
             }
             
+            checkAndMoveCompletedProject(project);
             saveData();
             renderProjectDisplay();
+            renderCompletedProjects();
+            updateCompletedProjectsCount();
+            updateProjectStats();
         }
         
         // 【新增】切换子任务完成状态
@@ -8622,8 +8790,12 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             if (!subtask) return;
             
             subtask.completed = !subtask.completed;
+            checkAndMoveCompletedProject(project);
             saveData();
             renderProjectDisplay();
+            renderCompletedProjects();
+            updateCompletedProjectsCount();
+            updateProjectStats();
             showToast(`✅ 子任务已${subtask.completed ? '完成' : '未完成'}`);
         }
 
@@ -8646,6 +8818,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 saveData();
                 renderProjectDisplay();
                 renderCompletedProjects();
+                updateCompletedProjectsCount();
+                updateProjectStats();
             }
         }
 
@@ -8670,6 +8844,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     saveData();
                     renderProjectDisplay();
                     renderCompletedProjects();
+                    updateCompletedProjectsCount();
+                    updateProjectStats();
                 }
             }
         }
@@ -8694,6 +8870,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 saveData();
                 renderProjectDisplay();
                 renderCompletedProjects();
+                updateCompletedProjectsCount();
+                updateProjectStats();
                 showToast('✅ 项目已删除');
             }
         }
@@ -10387,6 +10565,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                     updateSummaryStatistics(period);  // 添加：更新核心指标
                     updateStatisticsCharts(period);  // 更新图表
                     updateHealthStats(period);  // 添加：更新健康统计
+                    updateProjectStats(period);  // 【修复】更新项目进度条
                 });
             });
 
@@ -10639,10 +10818,13 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
         }
 
         function updateSummaryStatistics() {
-            // 更新健康统计卡片
+            // 更新健康统计卡片和项目进度
             const currentPeriod = document.querySelector('.stats-period-btn.bg-blue-600')?.getAttribute('data-period') || 'week';
             if (typeof updateHealthStats === 'function') {
                 updateHealthStats(currentPeriod);
+            }
+            if (typeof updateProjectStats === 'function') {
+                updateProjectStats(currentPeriod);
             }
         }
 
@@ -11769,6 +11951,19 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             renderTodoList();
         }
 
+        function editTodo(id) {
+            const todo = todoData.pending.find(t => t.id === id);
+            if (!todo) return;
+
+            const newText = prompt('编辑待办事项', todo.text);
+            if (newText !== null && newText.trim() !== '') {
+                todo.text = newText.trim();
+                localStorage.setItem('todoData', JSON.stringify(todoData));
+                renderTodoList();
+                showToast('✏️ 待办事项已更新');
+            }
+        }
+
         function getPriorityBadge(priority) {
             const badges = {
                 high: '<span class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">高</span>',
@@ -11799,8 +11994,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                         <div class="flex items-center gap-3 min-w-0 flex-1">
                             <button onclick="completeTodo(${todo.id})" id="todo-${todo.id}"
                                     class="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-green-500 hover:bg-green-50 transition-all flex-shrink-0"></button>
-                            <div class="min-w-0 flex-1">
-                                <div class="text-gray-800 break-all">${todo.text}</div>
+                            <div class="min-w-0 flex-1 cursor-pointer hover:bg-blue-50 rounded px-2 py-1 transition-colors" onclick="editTodo(${todo.id})" title="点击编辑">
+                                <div class="text-gray-800 break-all hover:text-blue-600">${todo.text}</div>
                                 <div class="text-xs text-gray-400 mt-1">
                                     ${todo.time ? `⏰ ${todo.time}` : ''} 
                                     ${todo.time ? ' · ' : ''}
@@ -11808,7 +12003,10 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                                 </div>
                             </div>
                         </div>
-                        <button onclick="deleteTodo(${todo.id}, 'pending')" class="text-gray-400 hover:text-red-500 text-sm flex-shrink-0">×</button>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <button onclick="editTodo(${todo.id})" class="text-gray-400 hover:text-blue-500 text-sm" title="编辑"><i class="fa fa-edit"></i></button>
+                            <button onclick="deleteTodo(${todo.id}, 'pending')" class="text-gray-400 hover:text-red-500 text-sm flex-shrink-0">×</button>
+                        </div>
                     </div>
                 `).join('');
             }
@@ -12667,7 +12865,7 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 document.getElementById('next-level-text').textContent = `距离下一级还需 ${expNeed - expGot} EXP`;
             }
 
-            // Check badges
+            // 【修复】检查徽章 - 确保已获得的徽章永不消失
             const savedBadges = localStorage.getItem('unlockedBadges') ? JSON.parse(localStorage.getItem('unlockedBadges')) : [];
             let newlyUnlocked = false;
 
@@ -12679,11 +12877,94 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 }
             });
 
-            if(newlyUnlocked) localStorage.setItem('unlockedBadges', JSON.stringify(savedBadges));
+            // 【修复】每次都保存徽章数据，确保持久化
+            localStorage.setItem('unlockedBadges', JSON.stringify(savedBadges));
 
             // Render Badges Board
             // Render Badges Board (下面是整合后的排布修复和已获得徽章显示)
             const container = document.getElementById('badges-container');
+            const equippedContainer = document.getElementById('equipped-badges'); // 新增：抓取已获得区域
+            
+            if(container) {
+                let libraryHtml = '';
+                let equippedHtml = ''; // 专门为"已获得徽章"存HTML
+                
+                BADGES.forEach(b => {
+                    const isUnlocked = savedBadges.includes(b.id);
+                    const isEquipped = localStorage.getItem('equippedBadge') === b.id;
+                    
+                    // 这是已解锁徽章的 HTML 模板 (去掉了固定的高度 h-24，改为 w-full 自适应)
+                    const unlockedTemplate = `
+                        <div class="relative group w-full aspect-square p-2 rounded-xl flex flex-col items-center text-center justify-center transition-all ${isEquipped ? 'bg-gradient-to-br from-yellow-100 to-amber-200 border-2 border-yellow-400 scale-110 shadow-[0_0_25px_rgba(251,191,36,0.5)] z-10 animate-pulse' : 'bg-gradient-to-br from-white to-gray-50 border border-yellow-200 shadow-sm transform hover:-translate-y-1 hover:shadow-md'} overflow-hidden cursor-pointer" onclick="equipBadge('${b.id}')">
+                            <div class="absolute -top-6 -right-6 w-12 h-12 bg-yellow-100 rounded-full opacity-50 blur-lg group-hover:scale-150 transition-all"></div>
+                            ${isEquipped ? '<div class="absolute top-0 left-0 w-full bg-gradient-to-r from-yellow-400 to-yellow-500 text-white text-[9px] font-bold py-1 z-20 hidden md:block shadow-lg">✨ 已佩戴 ✨</div><div class="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full text-[10px] text-white font-bold flex items-center justify-center md:hidden shadow-lg animate-spin" style="animation: spin 2s linear infinite;">⭐</div>' : '<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-white bg-opacity-90 transition-opacity backdrop-blur-sm z-20"><button class="px-2 py-1 text-xs bg-yellow-400 text-white rounded-full font-bold shadow-md hover:bg-yellow-500 transform hover:scale-105 transition-all">佩戴</button></div>'}
+                            <i class="fa ${b.icon} text-4xl md:text-5xl mb-2 md:mb-3 ${b.color} drop-shadow-lg z-10" style="filter: drop-shadow(0 0 10px ${b.color === 'text-yellow-500' ? '#eab308' : '#3b82f6'})"></i>
+                            <div class="font-extrabold text-[10px] md:text-xs text-gray-800 z-10 line-clamp-1 w-full px-1">${b.name}</div>
+                            <div class="hidden md:block text-[9px] text-gray-500 mt-1 leading-tight z-10 w-full px-1 truncate">${b.desc}</div>
+                        </div>
+                    `;
+
+                    if(isUnlocked) {
+                        libraryHtml += unlockedTemplate;
+                        equippedHtml += unlockedTemplate; // 如果解锁了，也同时放入已获得徽章区域
+                    } else {
+                        // 未解锁：黑白 + 模糊遮罩锁 + 小字描述
+                        libraryHtml += `
+                            <div class="relative group w-full aspect-square p-2 rounded-xl flex flex-col items-center text-center justify-center transition-all opacity-40 grayscale bg-gray-50 border border-gray-200" title="${b.desc}">
+                                <i class="fa ${b.icon} text-3xl md:text-4xl mb-1 md:mb-2 text-gray-400"></i>
+                                <div class="font-bold text-[10px] md:text-xs text-gray-500 line-clamp-1 w-full px-1">${b.name}</div>
+                                <!-- 恢复显示的小字描述 -->
+                                <div class="text-[9px] text-gray-400 mt-1 leading-tight w-full px-1 line-clamp-2">${b.desc}</div>
+                                
+                                <div class="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 bg-gray-100 bg-opacity-90 transition-opacity backdrop-blur-sm rounded-xl">
+                                    <i class="fa fa-lock text-2xl text-gray-600 mb-1"></i>
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+                                
+                // 处理自定义成就 (同上)
+                const customAchievements = JSON.parse(localStorage.getItem('customAchievements') || '[]');
+                customAchievements.forEach(ca => {
+                    const isEquipped = localStorage.getItem('equippedBadge') === ca.id;
+                    const customTemplate = `
+                        <div class="relative group w-full aspect-square p-2 rounded-xl flex flex-col items-center text-center justify-center transition-all ${isEquipped ? 'bg-gradient-to-br from-yellow-50 to-amber-100 border-2 border-yellow-400 scale-105 shadow-md z-10' : 'bg-gradient-to-br from-white to-gray-50 border border-yellow-200 shadow-sm transform hover:-translate-y-1 hover:shadow-md'} overflow-hidden cursor-pointer" onclick="equipBadge('${ca.id}')">
+                            <i class="fa ${ca.icon} text-3xl md:text-4xl mb-1 md:mb-2 ${ca.color} drop-shadow z-10"></i>
+                            <div class="absolute -top-6 -right-6 w-12 h-12 bg-yellow-100 rounded-full opacity-50 blur-lg group-hover:scale-150 transition-all"></div>
+                            ${isEquipped ? '<div class="absolute top-0 left-0 w-full bg-yellow-400 text-white text-[9px] font-bold py-0.5 z-20 hidden md:block">已佩戴</div><div class="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full text-[8px] text-white font-bold flex items-center justify-center md:hidden">✓</div>' : '<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-white bg-opacity-90 transition-opacity backdrop-blur-sm z-20"><button class="px-2 py-1 text-xs bg-yellow-400 text-white rounded-full font-bold shadow-md hover:bg-yellow-500 transform hover:scale-105 transition-all">佩戴</button></div>'}
+                            <div class="font-extrabold text-[10px] md:text-xs text-gray-800 z-10 line-clamp-1 w-full px-1">${ca.name}</div>
+                            <div class="hidden md:block text-[9px] text-gray-500 mt-1 leading-tight z-10 w-full px-1 truncate">${ca.desc || ''}</div>
+                        </div>
+                    `;
+                    libraryHtml += customTemplate;
+                    equippedHtml += customTemplate;
+                });
+                
+                // 将生成的HTML分别塞入底部的"徽章库"和顶部的"已获得徽章"区域
+                container.innerHTML = libraryHtml;
+                // 更新徽章总数显示 (共X个)
+                const totalBadgestCount = BADGES.length + (JSON.parse(localStorage.getItem('customAchievements') || '[]')).length;
+                const badgeCountEl = document.getElementById('badge-count');
+                if (badgeCountEl) {
+                    badgeCountEl.textContent = `(共${totalBadgestCount}个)`;
+                }
+
+
+                if (equippedContainer) {
+                    if (equippedHtml === '') {
+                        equippedContainer.innerHTML = '<div class="col-span-full text-center text-gray-400 text-sm py-4">还没有获得任何徽章</div>';
+                    } else {
+                        equippedContainer.innerHTML = equippedHtml;
+                    }
+                }
+            }
+
+            // 更新用户栏显示的成就等级
+            updateAchievementLevelDisplay();
+        }
+
+        function showAchievementPopup(badge) {
             const equippedContainer = document.getElementById('equipped-badges'); // 新增：抓取已获得区域
             
             if(container) {
@@ -12786,7 +13067,6 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
             }, 4500);
         }
 
-
         function equipBadge(badgeId) {
             localStorage.setItem('equippedBadge', badgeId);
             setTimeout(() => { if (typeof renderEquippedBadge === 'function') renderEquippedBadge(); }, 0);
@@ -12804,10 +13084,10 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 document.body.appendChild(container);
             }
             
-            const badgeId = localStorage.getItem('equippedBadge');  // ← 添加这一行
-            if (!badgeId) {                                          // ← 添加这一行
-                container.innerHTML = '';                            // ← 添加这一行
-                return;                                              // ← 添加这一行
+            const badgeId = localStorage.getItem('equippedBadge');
+            if (!badgeId) {
+                container.innerHTML = '';
+                return;
             } 
             let badge = BADGES.find(b => b.id === badgeId);
             // 如果在 BADGES 中找不到，检查 customAchievements
@@ -12838,7 +13118,8 @@ projectData = savedProjectData ? JSON.parse(savedProjectData) : { projects: [], 
                 `;
             } else {
                 container.innerHTML = '';
-            }}
+            }
+        }
 
         function renderUnlockedBadges() {
             const container = document.getElementById('equipped-badges');
